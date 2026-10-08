@@ -144,7 +144,7 @@ UNIT_LABEL = {  # quantity unit shown next to the input (singular, plural)
 }
 
 # Suggested dependencies (editable). Prerequisite may be satisfied by an included item
-# or by an existing AAIF foundation capability, in which case nothing is charged twice.
+# or by a capability the chosen foundation already provides, in which case nothing is charged twice.
 DEPENDS = {
  "BASE_SEARCH_INDEX": [["BASE_SITE_SEARCH", "BASE_FACETED_SEARCH", "BASE_EXTERNAL_SEARCH"]],
  "BASE_MULTI_CONTENT_SEARCH": [["BASE_SITE_SEARCH", "BASE_FACETED_SEARCH", "BASE_EXTERNAL_SEARCH"]],
@@ -252,31 +252,66 @@ assert handled == set(lib), set(lib) - handled
 # ---- design items: unpriced, editable -------------------------------------
 DESIGN = [
  ("DESIGN_DIRECTION", "Visual direction and brand application",
-  "Establish the visual direction for the site and apply the brand to the existing AAIF design system.",
-  "An approved visual direction: type, colour, imagery and component styling applied across the block library.", "direction", "directions"),
- ("DESIGN_EXISTING_BLOCKS", "Existing AAIF block redesign",
-  "Visually redesign selected existing AAIF blocks. Each block keeps its existing schema and behaviour. New fields, filters, workflows or functionality are separate development scope.",
-  "Approved designs for each selected block, counted once per site however often it appears.", "block", "blocks"),
+  "Establish the visual direction and apply the brand across the component library and page templates.",
+  "An approved visual direction: type, colour, imagery and component styling applied across the component library.", "direction", "directions"),
+ ("DESIGN_COMPONENTS", "Component design",
+  "Design of the components in scope. On a new platform this is each new reusable component. On an existing foundation it is each existing component chosen for visual redesign, which keeps its schema and behaviour; new fields, filters, workflows or functionality are separate development scope.",
+  "Approved designs for each component, counted once however often it appears.", "component", "components"),
  ("DESIGN_PAGE_LAYOUTS", "Representative page layout designs",
-  "Full page designs for representative templates that show how redesigned blocks compose.",
+  "Full page designs for representative templates that show how the components compose.",
   "Approved designs for each representative page layout.", "layout", "layouts"),
  ("DESIGN_REVIEWS", "Design review rounds",
   "Structured review and revision rounds on the design work.",
   "Consolidated feedback rounds with revised designs.", "round", "rounds"),
 ]
-for id_, name, what, rec, s, p in DESIGN:
+for id_, name, what, rec, s_, p_ in DESIGN:
     add(dict(id=id_, keys=[id_], name=name, what=what, receives=rec, sourceNotes="Design rates not established in source workbooks.",
              phase="Base", category="Design + Experience", subcategory="Design", section="base", subsection="design",
-             pricing=dict(model="per_unit", unitPrice=None, status="unpriced", qtyUnit=s, qtyUnitPlural=p, sourceUnit="each"),
+             pricing=dict(model="per_unit", unitPrice=None, status="unpriced", qtyUnit=s_, qtyUnitPlural=p_, sourceUnit="each"),
              dependsOn=[], optionalAvailable=True, isDesign=True,
-             quantitySource="aaif_redesign_count" if id_ == "DESIGN_EXISTING_BLOCKS" else None))
+             quantitySource="component_design_count" if id_ == "DESIGN_COMPONENTS" else None))
+
+# ---- quote types and their presets (editable in the Pricing Library) --------
+QUOTE_TYPES = [
+ dict(id="new_platform", name="New platform and rollout",
+      description="Build a new multisite platform from scratch, then roll out the portfolio of sites onto it.",
+      usesFoundation="optional", sitesStep=True),
+ dict(id="foundation_site", name="New site on an existing foundation",
+      description="Build a site for a sub brand or sister organisation by reusing a platform foundation Anyday already built.",
+      usesFoundation="required", sitesStep=False),
+ dict(id="expansion", name="Expand a platform we already run",
+      description="Add new sites to a live Anyday platform. Volume pricing continues from the sites already live.",
+      usesFoundation="required", sitesStep=True),
+]
+MIGRATION_CORE = ["MIG_SITE_ACTIVATION", "MIG_L1_PAGE", "MIG_L2_PAGE", "MIG_L3_PAGE", "MIG_STRUCTURED_RECORDS",
+                  "MIG_CONTENT_TYPE_MAP", "MIG_MEDIA", "MIG_REDIRECTS"]
+PRESETS = {
+ "new_platform": {
+   **{k: dict(state="included", qty=1) for k in ["BASE_CORE_PLATFORM", "BASE_STD_BRAND_CONTROLS", "DESIGN_DIRECTION", "MIG_BASIC_CLEANUP"]},
+   **{k: dict(state="included") for k in ["BASE_STD_PAGE_TEMPLATE", "BASE_STD_COMPONENT", "BASE_STRUCT_CONTENT_MODEL",
+                                          "DESIGN_COMPONENTS", "DESIGN_PAGE_LAYOUTS", "DESIGN_REVIEWS", "MIG_BRAND_CONFIG"] + MIGRATION_CORE},
+ },
+ "foundation_site": {
+   **{k: dict(state="hidden") for k in ["BASE_CORE_PLATFORM", "BASE_STD_BRAND_CONTROLS", "BASE_ADV_BRAND_CONTROLS"]},
+   **{k: dict(state="included", qty=1) for k in ["MIG_SITE_ACTIVATION", "MIG_BASIC_CLEANUP", "MIG_BRAND_CONFIG", "DESIGN_DIRECTION"]},
+   **{k: dict(state="included") for k in ["DESIGN_COMPONENTS", "DESIGN_PAGE_LAYOUTS", "DESIGN_REVIEWS"] + MIGRATION_CORE[1:]},
+ },
+ "expansion": {
+   **{k: dict(state="hidden") for k in ["BASE_CORE_PLATFORM", "BASE_STD_BRAND_CONTROLS", "BASE_ADV_BRAND_CONTROLS"]},
+   **{k: dict(state="included", qty=1) for k in ["MIG_BASIC_CLEANUP"]},
+   **{k: dict(state="included") for k in ["MIG_BRAND_CONFIG"] + MIGRATION_CORE},
+ },
+}
+for it in items:
+    it["presets"] = {t: PRESETS[t][it["id"]] for t in PRESETS if it["id"] in PRESETS[t]}
 
 library = dict(
-    schemaVersion=1,
+    schemaVersion=2,
+    quoteTypes=QUOTE_TYPES,
     name="Anyday WebOps Pricing Library",
     version="2026-10-01",
     currency="USD",
-    updatedAt=datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+    updatedAt=datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z'),
     source=dict(
         workbook="Pricing Calculator - Anyday WebOps Implementation (Google Sheet, modified 2026-10-01)",
         tab="Pricing Library",
@@ -284,9 +319,9 @@ library = dict(
     ),
     sections=[
         dict(id="base", name="WebOps Base + Design", order=1, sourceTab="01. WebOps Base Calculator",
-             intro="The shared implementation and design work built once and reused across the site."),
+             intro="The shared implementation and design work built once and reused across every site."),
         dict(id="migration", name="Migration", order=2, sourceTab="02. Migration Calculator",
-             intro="Moving the site's pages, records, media and URLs onto the platform."),
+             intro="Moving the sites' pages, records, media and URLs onto the platform."),
         dict(id="extensions", name="Platform Extensions", order=3, sourceTab="03. Platform Extensions Calculator",
              intro="Supported configuration and cleanup beyond core migration volume."),
     ],

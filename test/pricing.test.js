@@ -5,7 +5,9 @@ import { priceForQuantity, effectivePricing, calculateQuote, incrementalPrice, d
 import { newQuote, applyLibraryPricing, validateLibraryShape } from '../shared/quote.js';
 
 const library = JSON.parse(fs.readFileSync(new URL('../shared/library-default.json', import.meta.url)));
-const catalogue = JSON.parse(fs.readFileSync(new URL('../shared/aaif-catalogue.json', import.meta.url)));
+const foundation = JSON.parse(fs.readFileSync(new URL('../shared/foundations/aaif.json', import.meta.url)));
+// a quote with no lines chosen yet (type presets cleared), so each test sets exactly what it checks
+const blankQuote = (lib = library, f = foundation, opts = {}) => { const q = newQuote(lib, f, opts); q.lines = {}; return q; };
 const item = id => library.items.find(i => i.id === id);
 const P = (id, q, line = {}) => priceForQuantity(effectivePricing(item(id), line), q);
 const $ = d => d * 100;
@@ -38,7 +40,7 @@ test('section mapping follows the calculator tabs, not the Phase field', () => {
     assert.equal(item(id).section, 'extensions');
   }
   for (const id of ['MIG_SITE_ACTIVATION', 'MIG_L1_PAGE', 'MIG_REDIRECTS', 'MIG_CONTENT_TYPE_MAP']) assert.equal(item(id).section, 'migration');
-  for (const id of ['DESIGN_EXISTING_BLOCKS', 'BASE_SITE_SEARCH']) assert.equal(item(id).section, 'base');
+  for (const id of ['DESIGN_COMPONENTS', 'BASE_SITE_SEARCH']) assert.equal(item(id).section, 'base');
 });
 
 test('first batch plus additional batch boundaries', () => {
@@ -87,7 +89,7 @@ test('starting at prices stay distinct until confirmed', () => {
 });
 
 test('unpriced design items block final export; drafts still calculate', () => {
-  const q = newQuote(library, catalogue);
+  const q = blankQuote();
   q.lines.DESIGN_DIRECTION = { state: 'included', qty: 1 };
   q.lines.MIG_L1_PAGE = { state: 'included', qty: 2 };
   const c = calculateQuote(q);
@@ -102,7 +104,7 @@ test('unpriced design items block final export; drafts still calculate', () => {
 });
 
 test('quote override does not change the library; snapshot isolates library edits', () => {
-  const q = newQuote(library, catalogue);
+  const q = blankQuote();
   q.lines.MIG_L1_PAGE = { state: 'included', qty: 3, override: { unitPrice: $(900) } };
   assert.equal(calculateQuote(q).total, $(2700));
   assert.equal(item('MIG_L1_PAGE').pricing.unitPrice, $(1000));
@@ -113,13 +115,13 @@ test('quote override does not change the library; snapshot isolates library edit
   const { quote: q2, changes } = applyLibraryPricing(q, lib2);
   assert.equal(changes.length, 1);
   assert.equal(calculateQuote(q2).total, $(2700 + 6500)); // override kept, new library price applied
-  const fresh = newQuote(lib2, catalogue);
+  const fresh = blankQuote(lib2);
   fresh.lines.MIG_L2_PAGE = { state: 'included', qty: 10 };
   assert.equal(calculateQuote(fresh).total, $(6500));
 });
 
 test('design allocation changes the breakdown without increasing the total', () => {
-  const q = newQuote(library, catalogue);
+  const q = blankQuote();
   q.lines.BASE_STD_PAGE_TEMPLATE = { state: 'included', qty: 2 }; // $5,000 bundled fee
   q.lines.DESIGN_PAGE_LAYOUTS = { state: 'included', qty: 2, override: { unitPrice: $(1000) }, design: { mode: 'allocated', from: 'BASE_STD_PAGE_TEMPLATE' } };
   const c = calculateQuote(q);
@@ -140,7 +142,7 @@ test('design allocation changes the breakdown without increasing the total', () 
 });
 
 test('optional additions never contribute to the total; tiered additions price the increment', () => {
-  const q = newQuote(library, catalogue);
+  const q = blankQuote();
   q.lines.MIG_SITE_ACTIVATION = { state: 'included', qty: 10, addition: { qty: 5 } };
   q.lines.MIG_L1_PAGE = { state: 'optional', optionalQty: 10 };
   const c = calculateQuote(q);
@@ -153,7 +155,7 @@ test('optional additions never contribute to the total; tiered additions price t
 });
 
 test('hidden items are excluded from optional additions', () => {
-  const q = newQuote(library, catalogue);
+  const q = blankQuote();
   q.lines.BASE_CORE_PLATFORM = { state: 'hidden' };
   const c = calculateQuote(q);
   assert.ok(!c.optional.some(o => o.id === 'BASE_CORE_PLATFORM'));
@@ -161,10 +163,10 @@ test('hidden items are excluded from optional additions', () => {
 });
 
 test('dependencies: prerequisite satisfied by foundation is not charged twice', () => {
-  const q = newQuote(library, catalogue);
+  const q = blankQuote();
   q.lines.MIG_SEARCH_SETUP = { state: 'included', qty: 1 };
   assert.ok(calculateQuote(q).warnings.some(w => w.kind === 'dependency'));
-  q.aaif.providedCapabilities = ['BASE_SITE_SEARCH'];
+  q.foundation.providedCapabilities = ['BASE_SITE_SEARCH'];
   const c = calculateQuote(q);
   assert.ok(!c.warnings.some(w => w.kind === 'dependency'));
   assert.equal(c.total, $(2500));
@@ -173,22 +175,22 @@ test('dependencies: prerequisite satisfied by foundation is not charged twice', 
 });
 
 test('existing AAIF connector cannot be charged as a new connector build', () => {
-  const q = newQuote(library, catalogue);
+  const q = blankQuote();
   q.lines.BASE_NEW_SIMPLE_API = { state: 'included', qty: 1 };
-  q.aaif.integrations[0] = { ...q.aaif.integrations[0], existingMeetsRequirement: true, pricedAs: 'BASE_NEW_SIMPLE_API' };
+  q.foundation.integrations[0] = { ...q.foundation.integrations[0], existingMeetsRequirement: true, pricedAs: 'BASE_NEW_SIMPLE_API' };
   const c = calculateQuote(q);
   assert.equal(c.canExportFinal, false);
   assert.ok(c.blockers.some(b => b.kind === 'duplicate'));
 });
 
-test('redesign count is unique blocks per site and never all 39 by default', () => {
-  const q = newQuote(library, catalogue);
-  q.lines.DESIGN_EXISTING_BLOCKS = { state: 'included' };
-  assert.equal(calculateQuote(q).lines.find(l => l.id === 'DESIGN_EXISTING_BLOCKS').qty, 0);
-  q.aaif.blocks[0].treatment = 'redesign';
-  q.aaif.blocks.push({ ...q.aaif.blocks[0] }); // same block listed twice (reused on many pages)
-  q.aaif.blocks[3].treatment = 'redesign';
-  assert.equal(calculateQuote(q).lines.find(l => l.id === 'DESIGN_EXISTING_BLOCKS').qty, 2);
+test('component design count is unique redesigned components and never every component by default', () => {
+  const q = blankQuote();
+  q.lines.DESIGN_COMPONENTS = { state: 'included' };
+  assert.equal(calculateQuote(q).lines.find(l => l.id === 'DESIGN_COMPONENTS').qty, 0);
+  q.foundation.components[0].treatment = 'redesign';
+  q.foundation.components.push({ ...q.foundation.components[0] }); // same block listed twice (reused on many pages)
+  q.foundation.components[3].treatment = 'redesign';
+  assert.equal(calculateQuote(q).lines.find(l => l.id === 'DESIGN_COMPONENTS').qty, 2);
 });
 
 test('LF examples reproduce workbook migration and extension totals', () => {

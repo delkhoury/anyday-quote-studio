@@ -3,7 +3,7 @@
 // Money is integer cents.
 
 import { fmtMoney, fmtInt } from './format.js';
-import { summarize } from './inventory.js';
+import { portfolioSummary } from './inventory.js';
 
 export const LINE_STATES = ['included', 'optional', 'hidden'];
 
@@ -106,6 +106,29 @@ export function incrementalPrice(p, current, add) {
   return { amount: after.amount - before.amount, status: 'priced', before: before.amount, after: after.amount };
 }
 
+// Price `qty` units that continue on from `prior` units already sold (expansion of a live
+// platform): tiers and batches carry on from where the earlier sites left them.
+export function pricedFrom(p, prior, qty) {
+  if (p.model === 'included') return priceForQuantity(p, qty);
+  if (qty === null || qty === undefined || qty === '' || Number.isNaN(Number(qty))) return { amount: null, status: 'qty_needed', breakdown: [] };
+  qty = Number(qty);
+  if (qty < 0) return { amount: null, status: 'invalid', breakdown: [], error: 'Quantity cannot be negative' };
+  if (qty === 0) return { amount: 0, status: 'priced', breakdown: [] };
+  const inc = incrementalPrice(p, prior, qty);
+  if (inc.status !== 'priced') return { amount: null, status: inc.status, breakdown: [] };
+  let bd;
+  if (p.model === 'progressive') {
+    bd = []; let lo = prior, prev = 0;
+    for (const t of p.tiers) {
+      const hi = t.upTo ?? Infinity;
+      const n = Math.max(0, Math.min(prior + qty, hi) - Math.max(lo, prev));
+      if (n > 0) bd.push({ label: `${t.label}: ${fmtInt(n)} × ${fmtMoney(t.price)}`, amount: n * t.price });
+      prev = t.upTo ?? prev;
+    }
+  } else bd = [{ label: `${fmtInt(qty)} more ${p.qtyUnitPlural || 'units'} on top of ${fmtInt(prior)} already live`, amount: inc.amount }];
+  return { amount: inc.amount, status: 'priced', breakdown: bd, prior };
+}
+
 // Plain language "how it is priced".
 export function describePricing(p) {
   const prefix = p.status === 'starting_at' ? 'Starting at ' : '';
@@ -138,18 +161,20 @@ export function shortPrice(p) {
 }
 
 // ---------------------------------------------------------------------------
-// AAIF foundation helpers
+// Foundation helpers. A quote may reuse a foundation (component library,
+// integrations, capabilities). Its snapshot lives on quote.foundation.
 // ---------------------------------------------------------------------------
+export function foundationComponents(quote) { return quote.foundation?.components || []; }
+
+// Unique foundation components marked for redesign.
 export function redesignCount(quote) {
-  const blocks = quote.aaif?.blocks || [];
-  const ids = new Set(blocks.filter(b => b.treatment === 'redesign').map(b => b.id));
-  return ids.size; // unique per site regardless of reuse
+  return new Set(foundationComponents(quote).filter(b => b.treatment === 'redesign').map(b => b.id)).size;
 }
 
 export function blockTreatmentCounts(quote) {
   const c = { brand: 0, redesign: 0, extend: 0, new: 0, not_used: 0, unassigned: 0 };
   const seen = new Set();
-  for (const b of quote.aaif?.blocks || []) {
+  for (const b of foundationComponents(quote)) {
     if (seen.has(b.id)) continue; seen.add(b.id);
     c[b.treatment || 'unassigned'] = (c[b.treatment || 'unassigned'] || 0) + 1;
   }
@@ -157,7 +182,16 @@ export function blockTreatmentCounts(quote) {
 }
 
 function foundationProvides(quote, id) {
-  return (quote.aaif?.providedCapabilities || []).includes(id);
+  return (quote.foundation?.providedCapabilities || []).includes(id);
+}
+
+// Components needing design: redesigned foundation components, plus (on a new
+// platform) every reusable component being built.
+export function componentDesignCount(quote) {
+  const redesign = redesignCount(quote);
+  if ((quote.type || 'foundation_site') !== 'new_platform') return redesign;
+  const qtyOf = id => { const l = quote.lines?.[id]; return l?.state === 'included' ? (Number(l.qty) || 0) : 0; };
+  return redesign + qtyOf('BASE_STD_COMPONENT') + qtyOf('BASE_ADV_COMPONENT');
 }
 
 // ---------------------------------------------------------------------------
@@ -170,7 +204,7 @@ export function lineFor(quote, item) {
 }
 
 export function quantityFor(quote, item, line) {
-  if (item.quantitySource === 'aaif_redesign_count') return redesignCount(quote);
+  if (item.quantitySource === 'component_design_count' || item.quantitySource === 'aaif_redesign_count') return componentDesignCount(quote);
   return line.qty;
 }
 
@@ -196,7 +230,9 @@ export function calculateQuote(quote) {
       subsection: item.isDesign ? 'design' : 'implementation', isDesign: !!item.isDesign,
     };
     if (line.state === 'included') {
-      const r = priceForQuantity(p, qty);
+      const prior = Number(line.priorQty) || 0;
+      const r = prior > 0 ? pricedFrom(p, prior, qty) : priceForQuantity(p, qty);
+      if (prior > 0) entry.prior = prior;
       entry.result = r;
       entry.amount = r.status === 'priced' ? r.amount : null;
       entry.displayAmount = entry.amount;
@@ -206,7 +242,7 @@ export function calculateQuote(quote) {
       entry.startingAt = p.status === 'starting_at';
       // add-on increment offered on top of included scope (tier aware)
       if (line.addition && isNum(Number(line.addition.qty)) && Number(line.addition.qty) > 0 && r.status === 'priced') {
-        entry.addition = { qty: Number(line.addition.qty), ...incrementalPrice(p, Number(qty) || 0, Number(line.addition.qty)) };
+        entry.addition = { qty: Number(line.addition.qty), ...incrementalPrice(p, prior + (Number(qty) || 0), Number(line.addition.qty)) };
       }
     }
     lines.push(entry);
@@ -245,7 +281,7 @@ export function calculateQuote(quote) {
       const ok = group.some(id => isIncluded(id) || foundationProvides(quote, id));
       if (!ok) {
         const names = group.map(id => byId[id]?.name || id).join(' or ');
-        warnings.push({ id: l.id, kind: 'dependency', message: `${l.item.name} normally requires ${names}. Include it, or mark the capability as already provided by the AAIF foundation.` });
+        warnings.push({ id: l.id, kind: 'dependency', message: `${l.item.name} normally requires ${names}. Include it, or mark the capability as already provided by the foundation.` });
       }
     }
   }
@@ -253,15 +289,15 @@ export function calculateQuote(quote) {
   // pass 4: duplicate charge checks
   const counts = blockTreatmentCounts(quote);
   if (counts.extend > 0) {
-    warnings.push({ kind: 'aaif_extend', message: `${counts.extend} AAIF block${counts.extend === 1 ? ' is' : 's are'} marked "extend functionality". Visual redesign keeps existing schema and behaviour, so add separately identified development scope (i.e. a reusable component) for the new fields, filters or workflows.` });
+    warnings.push({ kind: 'foundation_extend', message: `${counts.extend} foundation component${counts.extend === 1 ? ' is' : 's are'} marked "extend functionality". Visual redesign keeps existing schema and behaviour, so add separately identified development scope (i.e. a reusable component) for the new fields, filters or workflows.` });
   }
   if (counts.new > 0) {
     const comp = (isIncluded('BASE_STD_COMPONENT') ? Number(byLine.BASE_STD_COMPONENT.qty) || 0 : 0) + (isIncluded('BASE_ADV_COMPONENT') ? Number(byLine.BASE_ADV_COMPONENT.qty) || 0 : 0);
-    if (comp < counts.new) warnings.push({ kind: 'aaif_new', message: `${counts.new} new block${counts.new === 1 ? '' : 's'} identified but only ${comp} reusable component${comp === 1 ? '' : 's'} included.` });
+    if (comp < counts.new) warnings.push({ kind: 'foundation_new', message: `${counts.new} new component${counts.new === 1 ? '' : 's'} identified but only ${comp} reusable component${comp === 1 ? '' : 's'} included.` });
   }
-  for (const integ of quote.aaif?.integrations || []) {
+  for (const integ of quote.foundation?.integrations || []) {
     if (integ.existingMeetsRequirement && integ.pricedAs && ['BASE_SHARED_INTEGRATION_NEW', 'BASE_NEW_SIMPLE_API', 'BASE_NEW_ADV_API'].includes(integ.pricedAs) && isIncluded(integ.pricedAs)) {
-      blockers.push({ id: integ.pricedAs, kind: 'duplicate', message: `${integ.name}: an existing AAIF connector meets the requirement, so it should be priced as configuration and compatibility review, not a new connector build.` });
+      blockers.push({ id: integ.pricedAs, kind: 'duplicate', message: `${integ.name}: an existing foundation connector meets the requirement, so it should be priced as configuration and compatibility review, not a new connector build.` });
     }
   }
   // page level vs bulk static vs records double counting
@@ -269,7 +305,7 @@ export function calculateQuote(quote) {
   if (inv && inv.length) {
     const pageIds = ['MIG_L1_PAGE', 'MIG_L2_PAGE', 'MIG_L3_PAGE', 'MIG_BULK_STATIC', 'MIG_STRUCTURED_RECORDS'];
     const sum = pageIds.filter(isIncluded).reduce((a, id) => a + (Number(byLine[id].qty) || 0), 0);
-    const migratable = summarize(quote.inventory).migratableUrls;
+    const migratable = portfolioSummary(quote).migratableUrls;
     if (isNum(migratable) && sum > migratable) {
       warnings.push({ kind: 'double_count', message: `Page and record quantities (${fmtInt(sum)}) exceed the reviewed URLs included for migration (${fmtInt(migratable)}). The same content should be charged once: as a composed page, a bulk static page or a structured record.` });
     }

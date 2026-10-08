@@ -1,0 +1,221 @@
+{
+ "schemaVersion": 1,
+ "id": "aaif",
+ "name": "AAIF (Linux Foundation)",
+ "owner": "Linux Foundation",
+ "description": "Multisite platform Anyday built for the Agentic AI Foundation. Linux Foundation projects can launch on it by reusing its components, content models and integrations.",
+ "archived": false,
+ "complete": false,
+ "expectedComponents": 39,
+ "source": "Block names referenced in the PyTorch, OpenSSF and CNCF workbooks (Oct 6 2026). The AAIF documentation describing all 39 blocks was not supplied; import it to complete this list.",
+ "components": [
+  {
+   "id": "hero",
+   "name": "Hero",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "pageHero",
+   "name": "Page Hero",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "mediaSplitIntro",
+   "name": "Media Split Intro",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "calloutWithChecklist",
+   "name": "Callout With Checklist",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "iconCardsSection",
+   "name": "Icon Cards Section",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "accordionSection",
+   "name": "Accordion Section",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "blogList",
+   "name": "Blog List",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "newsList",
+   "name": "News List",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "videoListingSection",
+   "name": "Video Listing Section",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "writtenContentHub",
+   "name": "Written Content Hub",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "projects",
+   "name": "Projects",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "peopleSection",
+   "name": "People Section",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "staffListSection",
+   "name": "Staff List Section",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "ambassadorsSection",
+   "name": "Ambassadors Section",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "membersSection",
+   "name": "Members Section",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "membershipSection",
+   "name": "Membership Section",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "workingGroupsSection",
+   "name": "Working Groups Section",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "calendar",
+   "name": "Calendar",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "contactSection",
+   "name": "Contact Section",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "subscription",
+   "name": "Subscription",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "footerCallout",
+   "name": "Footer Callout",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "faq",
+   "name": "FAQ",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "podcastListingSection",
+   "name": "Podcast Listing Section",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "tabsListingSection",
+   "name": "Tabs Listing Section",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "testimonial",
+   "name": "Testimonial",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  },
+  {
+   "id": "mediaContentHub",
+   "name": "Media Content Hub",
+   "kind": "block",
+   "documented": false,
+   "description": ""
+  }
+ ],
+ "contentModels": [],
+ "integrations": [
+  {
+   "id": "luma_gateway",
+   "name": "Luma events via Gateway",
+   "confirmed": false,
+   "source": "Anyday engagement notes, Jul 30 2026. Confirm against AAIF documentation."
+  },
+  {
+   "id": "lfx_data",
+   "name": "LFX structured project and governance data",
+   "confirmed": false,
+   "source": "Anyday engagement notes. Confirm against AAIF documentation."
+  },
+  {
+   "id": "lfx_committee_calendar",
+   "name": "LFX committee meetings (V2 API) for calendar",
+   "confirmed": false,
+   "source": "Anyday engagement notes, Jul 30 2026. Confirm against AAIF documentation."
+  }
+ ],
+ "providedCapabilities": [],
+ "notes": "",
+ "documents": [],
+ "createdAt": "2026-10-06T00:00:00.000Z",
+ "updatedAt": "2026-10-06T00:00:00.000Z"
+}

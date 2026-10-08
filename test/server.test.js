@@ -54,7 +54,7 @@ test('create, save, reopen, conflict detection, duplicate, export and import', a
 
 test('library edits affect new quotes only until pricing is explicitly applied', async () => {
   const before = (await api('POST', '/api/quotes', { client: 'Before' })).body;
-  before.lines.MIG_L2_PAGE = { state: 'included', qty: 10 };
+  before.lines = { MIG_L2_PAGE: { state: 'included', qty: 10 } };
   await api('PUT', `/api/quotes/${before.id}`, { quote: before });
   const lib = (await api('GET', '/api/library')).body;
   lib.items.find(i => i.id === 'MIG_L2_PAGE').pricing.unitPrice = 60000;
@@ -67,7 +67,7 @@ test('library edits affect new quotes only until pricing is explicitly applied',
   const list = (await api('GET', '/api/quotes')).body;
   assert.equal(list.find(q => q.id === before.id).total, 500000); // unchanged snapshot
   const after = (await api('POST', '/api/quotes', { client: 'After' })).body;
-  after.lines.MIG_L2_PAGE = { state: 'included', qty: 10 };
+  after.lines = { MIG_L2_PAGE: { state: 'included', qty: 10 } };
   await api('PUT', `/api/quotes/${after.id}`, { quote: after });
   assert.equal((await api('GET', '/api/quotes')).body.find(q => q.id === after.id).total, 600000);
   const preview = (await api('POST', `/api/quotes/${before.id}/apply-library`, { confirm: false })).body;
@@ -85,7 +85,7 @@ test('PDF: draft available, final blocked while unpriced, final allowed once pri
   // price the design work and confirm quantities
   const q = (await api('GET', '/api/quotes/example-pytorch')).body;
   q.lines.DESIGN_DIRECTION.override = { unitPrice: 800000 };
-  q.lines.DESIGN_EXISTING_BLOCKS.override = { unitPrice: 75000 };
+  q.lines.DESIGN_COMPONENTS.override = { unitPrice: 75000 };
   q.lines.DESIGN_PAGE_LAYOUTS = { ...q.lines.DESIGN_PAGE_LAYOUTS, qty: 4, override: { unitPrice: 150000 } };
   q.lines.DESIGN_REVIEWS = { ...q.lines.DESIGN_REVIEWS, qty: 2, override: { unitPrice: 100000 }, design: { mode: 'allocated', from: 'BASE_STD_PAGE_TEMPLATE' } };
   await api('PUT', `/api/quotes/${q.id}`, { quote: q });
@@ -127,8 +127,48 @@ test('scan job lifecycle: merge is explicit, partial requires confirmation, fail
     assert.equal(refused.status, 409);
     const merged = (await api('POST', `/api/quotes/${q.id}/merge-scan`, { scanId: j.result.id, acceptPartial: true })).body;
     assert.ok(merged.inventory.entries.length > 30);
-    assert.equal(merged.lines.MIG_L1_PAGE, undefined, 'quantities untouched until applied');
+    assert.equal(merged.lines.MIG_L1_PAGE?.qty, undefined, 'quantities untouched until applied');
+    assert.ok(merged.inventory.entries.every(e => e.groupId === 'main' && e.siteKey), 'entries tagged with site type and site');
+    assert.equal((await api('POST', `/api/quotes/${q.id}/merge-scan`, { scanId: j.result.id, acceptPartial: true, groupId: 'nope' })).status, 400);
     const csv = (await api('GET', `/api/quotes/${q.id}/inventory.csv`)).body.toString();
     assert.match(csv.split('\n')[0], /URL,Title,Content type,Migration category/);
   } finally { server.close(); }
+});
+
+test('foundations: seeded, listed, created, edited with conflict detection, duplicated; quote types use them', async () => {
+  const list = (await api('GET', '/api/foundations')).body;
+  const aaif = list.find(f => f.id === 'aaif');
+  assert.ok(aaif && aaif.components.length === 26, 'AAIF foundation seeded with its 26 known components');
+  const made = (await api('POST', '/api/foundations', { name: 'Clinic Platform', owner: 'Acme Health' })).body;
+  assert.equal(made.id, 'clinic-platform');
+  made.components = [{ id: 'hero', name: 'Hero' }, { id: 'locator', name: 'Clinic locator' }];
+  const saved = (await api('PUT', `/api/foundations/${made.id}`, { foundation: made, baseUpdatedAt: made.updatedAt })).body;
+  assert.equal(saved.components.length, 2);
+  assert.equal((await api('PUT', `/api/foundations/${made.id}`, { foundation: made, baseUpdatedAt: made.updatedAt })).status, 409);
+  const dupBad = { ...saved, components: [{ id: 'a' }, { id: 'a' }] };
+  assert.equal((await api('PUT', `/api/foundations/${made.id}`, { foundation: dupBad })).status, 400);
+  const copy = (await api('POST', `/api/foundations/${made.id}/duplicate`)).body;
+  assert.notEqual(copy.id, made.id); assert.equal(copy.components.length, 2);
+
+  // a foundation site needs a foundation; a new platform does not
+  assert.equal((await api('POST', '/api/quotes', { client: 'X', type: 'foundation_site' })).status, 400);
+  const sub = (await api('POST', '/api/quotes', { client: 'Sub', type: 'foundation_site', foundationId: made.id, parentOrg: 'Acme Health' })).body;
+  assert.equal(sub.type, 'foundation_site'); assert.equal(sub.foundation.name, 'Clinic Platform'); assert.equal(sub.client.parentOrg, 'Acme Health');
+  assert.equal(sub.lines.BASE_CORE_PLATFORM.state, 'hidden');
+  const np = (await api('POST', '/api/quotes', { client: 'Clinics', type: 'new_platform' })).body;
+  assert.equal(np.foundation, null); assert.equal(np.lines.BASE_CORE_PLATFORM.state, 'included');
+  const ex = (await api('POST', '/api/quotes', { client: 'More', type: 'expansion', foundationId: made.id, existingLiveSites: 50 })).body;
+  assert.equal(ex.lines.MIG_SITE_ACTIVATION.priorQty, 50);
+
+  // editing a foundation never changes an existing quote until applied explicitly
+  saved.components.push({ id: 'map', name: 'Map' });
+  await api('PUT', `/api/foundations/${made.id}`, { foundation: saved });
+  sub.foundation.components[0].treatment = 'redesign';
+  const subSaved = (await api('PUT', `/api/quotes/${sub.id}`, { quote: sub })).body;
+  assert.equal((await api('GET', `/api/quotes/${sub.id}`)).body.foundation.components.length, 2);
+  const applied = (await api('POST', `/api/quotes/${sub.id}/apply-foundation`, { confirm: true, baseUpdatedAt: subSaved.updatedAt })).body.quote;
+  assert.equal(applied.foundation.components.length, 3);
+  assert.equal(applied.foundation.components.find(c => c.id === 'hero').treatment, 'redesign', 'treatments kept');
+  const summary = (await api('GET', '/api/quotes')).body.find(q => q.id === sub.id);
+  assert.equal(summary.foundation, 'Clinic Platform'); assert.equal(summary.type, 'foundation_site');
 });

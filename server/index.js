@@ -10,8 +10,9 @@ import { htmlToPdf, pdfAvailable, markDataUri, PDF_ASSET_BASE, closeBrowser } fr
 import { runScan } from './scanner/scan.js';
 import { calculateQuote } from '../shared/pricing.js';
 import { renderProposal } from '../shared/proposal.js';
-import { mergeScan, inventoryCsv } from '../shared/inventory.js';
-import { applyLibraryPricing } from '../shared/quote.js';
+import { mergeScan, inventoryCsv, portfolioSummary } from '../shared/inventory.js';
+import { applyLibraryPricing, applyFoundation, quoteTypeOf } from '../shared/quote.js';
+import { migrateLibrary } from '../shared/migrate.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -47,6 +48,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
       id: q.id, number: q.number, client: q.client?.name, project: q.project?.name, url: q.project?.url, updatedAt: q.updatedAt, createdAt: q.createdAt,
       example: q.example?.label || null, libraryVersion: q.pricingSnapshot?.libraryVersion, total: calc?.total ?? null, totalStatus: calc?.totalStatus ?? null,
       blockers: calc?.blockers.length ?? null, urls: q.inventory?.entries?.length || 0, issuedAt: q.issuedAt || null,
+      type: q.type || 'foundation_site', typeName: quoteTypeOf(q).name, foundation: q.foundation?.name || null, sites: (() => { try { return portfolioSummary(q).totalSites; } catch { return null; } })(),
     };
   };
 
@@ -60,14 +62,26 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     res.setHeader('Content-Disposition', `attachment; filename="anyday-pricing-library-${lib.version}.json"`);
     res.json(lib);
   }));
-  app.post('/api/library/import', h((req, res) => res.json(store.saveLibrary(req.body.library))));
+  app.post('/api/library/import', h((req, res) => res.json(store.saveLibrary(migrateLibrary(req.body.library || {}, store.getLibrary())))));
   app.get('/api/library/versions', h((req, res) => res.json(store.listLibraryVersions())));
-  app.get('/api/catalogue', h((req, res) => res.json(store.getCatalogue())));
-  app.put('/api/catalogue', h((req, res) => res.json(store.saveCatalogue(req.body))));
+
+  // ---- foundations: reusable platforms a quote can build on -----------------
+  app.get('/api/foundations', h((req, res) => res.json(store.listFoundations())));
+  app.post('/api/foundations', h((req, res) => res.json(store.createFoundation({ name: req.body.name || '', owner: req.body.owner || '', description: req.body.description || '', createdBy: req.user?.email || null }))));
+  app.get('/api/foundations/:id', h((req, res) => res.json(store.getFoundation(req.params.id))));
+  app.put('/api/foundations/:id', h((req, res) => {
+    const f = req.body.foundation;
+    if (!f || f.id !== req.params.id) throw new Invalid('Foundation id mismatch');
+    res.json(store.saveFoundation({ ...f, updatedBy: req.user?.email || null }, { baseUpdatedAt: req.body.baseUpdatedAt }));
+  }));
+  app.post('/api/foundations/:id/duplicate', h((req, res) => res.json(store.duplicateFoundation(req.params.id))));
 
   // ---- quotes --------------------------------------------------------------
   app.get('/api/quotes', h((req, res) => res.json(store.listQuotes().map(quoteSummary).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '')))));
-  app.post('/api/quotes', h((req, res) => res.json(store.createQuote({ client: req.body.client || '', project: req.body.project || '', url: req.body.url || '', preparedBy: req.user?.name || 'Anyday', createdBy: req.user?.email || null }))));
+  app.post('/api/quotes', h((req, res) => {
+    const b = req.body || {};
+    res.json(store.createQuote({ client: b.client || '', project: b.project || '', url: b.url || '', type: b.type || (b.foundationId ? 'foundation_site' : 'new_platform'), foundationId: b.foundationId || null, parentOrg: b.parentOrg || '', existingLiveSites: Math.max(0, Math.floor(Number(b.existingLiveSites) || 0)), preparedBy: req.user?.name || 'Anyday', createdBy: req.user?.email || null }));
+  }));
   app.post('/api/quotes/import', h((req, res) => res.json(store.importQuote(req.body.quote))));
   app.get('/api/quotes/:id', h((req, res) => res.json(store.getQuote(req.params.id))));
   app.put('/api/quotes/:id', h((req, res) => {
@@ -88,6 +102,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const { quote, changes } = applyLibraryPricing(q, store.getLibrary());
     if (!req.body.confirm) return res.json({ changes, before: calculateQuote(q).total, after: calculateQuote(quote).total });
     res.json({ changes, quote: store.saveQuote(quote, { baseUpdatedAt: req.body.baseUpdatedAt }) });
+  }));
+  // explicit: refresh the quote's foundation snapshot from the current foundation (treatments are kept)
+  app.post('/api/quotes/:id/apply-foundation', h((req, res) => {
+    const q = store.getQuote(req.params.id);
+    const fid = req.body.foundationId || q.foundation?.id;
+    if (!fid) throw new Invalid('Choose a foundation');
+    const next = applyFoundation(q, store.getFoundation(fid));
+    if (!req.body.confirm) return res.json({ before: calculateQuote(q).total, after: calculateQuote(next).total, components: next.foundation.components.length });
+    res.json({ quote: store.saveQuote(next, { baseUpdatedAt: req.body.baseUpdatedAt }) });
   }));
   app.get('/api/quotes/:id/inventory.csv', h((req, res) => {
     const q = store.getQuote(req.params.id);
@@ -142,14 +165,14 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
 
   app.post('/api/scans', h((req, res) => {
     const { quoteId, url, includeHosts = [], crawlIfNoSitemap = false, limits = {} } = req.body || {};
-    if (quoteId) store.getQuote(quoteId); // must exist
     const lim = {};
     if (Number.isFinite(limits.maxPagesInspect)) lim.maxPagesInspect = Math.max(1, Math.min(600, limits.maxPagesInspect));
     if (Number.isFinite(limits.maxUrls)) lim.maxUrls = Math.max(10, Math.min(50000, limits.maxUrls));
     if (Number.isFinite(limits.maxCrawlPages)) lim.maxCrawlPages = Math.max(10, Math.min(1000, limits.maxCrawlPages));
-    const cat = store.getCatalogue();
+    const q0 = quoteId ? store.getQuote(quoteId) : null;
+    const componentIds = (q0?.foundation?.components || []).map(c => c.id);
     const job = { id: 'job_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), quoteId, status: 'queued', createdAt: new Date().toISOString(), progress: { phase: 'queued', message: 'Waiting to start' }, recent: [], ctl: new AbortController(),
-      params: { rootUrl: url, includeHosts: includeHosts.filter(x => typeof x === 'string' && /^[a-z0-9.-]+$/i.test(x)), crawlIfNoSitemap: !!crawlIfNoSitemap, limits: lim, catalogueIds: cat.blocks.map(b => b.id) } };
+      params: { rootUrl: url, includeHosts: includeHosts.filter(x => typeof x === 'string' && /^[a-z0-9.-]+$/i.test(x)), crawlIfNoSitemap: !!crawlIfNoSitemap, limits: lim, catalogueIds: componentIds } };
     jobs.set(job.id, job); queue.push(job); pump();
     res.json(publicJob(job));
   }));
@@ -162,8 +185,10 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const scan = store.getScan(req.body.scanId);
     if (scan.status !== 'complete') throw new Invalid('This scan has no URL results to merge');
     if (scan.partial && !req.body.acceptPartial) throw Object.assign(new Error('This scan is partial. Confirm to merge the partial results.'), { status: 409, code: 'partial' });
-    const inventory = mergeScan(q.inventory, scan);
-    const next = { ...q, inventory, history: [...(q.history || []), { at: new Date().toISOString(), kind: 'merged_scan', scanId: scan.id, partial: scan.partial, urls: scan.entries.length }] };
+    const groupId = String(req.body.groupId || q.siteGroups?.[0]?.id || 'main');
+    if (q.siteGroups?.length && !q.siteGroups.some(g => g.id === groupId)) throw new Invalid('Unknown site type');
+    const inventory = mergeScan(q.inventory, scan, { groupId });
+    const next = { ...q, inventory, history: [...(q.history || []), { at: new Date().toISOString(), kind: 'merged_scan', scanId: scan.id, partial: scan.partial, urls: scan.entries.length, groupId }] };
     res.json(store.saveQuote(next, { baseUpdatedAt: req.body.baseUpdatedAt }));
   }));
 

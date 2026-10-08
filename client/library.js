@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { html, Badge, Field, NumInput, TextInput, Modal, Seg, toast, askConfirm } from './ui.js';
 import { describePricing } from '../shared/pricing.js';
-import { validateLibraryShape, blockLabel } from '../shared/quote.js';
+import { validateLibraryShape, quoteTypes } from '../shared/quote.js';
 import { fmtDate, toCents, centsToInput, fmtMoney } from '../shared/format.js';
 import { download, readFileText } from './api.js';
 
@@ -16,14 +16,13 @@ const MODELS = [
 export function LibraryScreen({ api, onSaved }) {
   const [lib, setLib] = useState(null);
   const [orig, setOrig] = useState(null);
-  const [cat, setCat] = useState(null);
   const [tab, setTab] = useState('items');
   const [sec, setSec] = useState('all');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(null);
   const [adding, setAdding] = useState(false);
   const [errs, setErrs] = useState([]);
-  useEffect(() => { api.library().then(l => { setLib(l); setOrig(JSON.stringify(l)); }); api.catalogue().then(setCat); }, []);
+  useEffect(() => { api.library().then(l => { setLib(l); setOrig(JSON.stringify(l)); }); }, []);
   const dirty = lib && JSON.stringify(lib) !== orig;
   const live = useMemo(() => lib ? validateLibraryShape(lib) : [], [lib]);
   if (!lib) return html`<div class="empty">Loading library…</div>`;
@@ -61,7 +60,7 @@ export function LibraryScreen({ api, onSaved }) {
     <div class="row wrap">
       <button class=${'btn' + (tab === 'items' ? ' dark' : '')} onClick=${() => setTab('items')}>Pricing items</button>
       <button class=${'btn' + (tab === 'sections' ? ' dark' : '')} onClick=${() => setTab('sections')}>Sections and mapping</button>
-      <button class=${'btn' + (tab === 'aaif' ? ' dark' : '')} onClick=${() => setTab('aaif')}>AAIF foundation</button>
+      <button class=${'btn' + (tab === 'types' ? ' dark' : '')} onClick=${() => setTab('types')}>Quote type presets</button>
     </div>
 
     ${tab === 'items' ? html`<div class="card" style="padding:12px 14px"><div class="row wrap">
@@ -91,7 +90,7 @@ export function LibraryScreen({ api, onSaved }) {
         ${lib.items.map(i => html`<tr><td>${i.name}<div class="tiny muted">${i.id}</div></td><td class="small">${i.phase}</td><td><select class="input" style="width:auto" value=${i.section} onChange=${e => setItem(i.id, { section: e.target.value })} aria-label=${'Section for ' + i.name}>${lib.sections.map(s => html`<option value=${s.id}>${s.name}</option>`)}</select></td></tr>`)}
       </tbody></table></div>` : null}
 
-    ${tab === 'aaif' && cat ? html`<${CatalogueEditor} api=${api} cat=${cat} setCat=${setCat} lib=${lib} />` : null}
+    ${tab === 'types' ? html`<${PresetsEditor} lib=${lib} setItem=${setItem} />` : null}
     ${adding ? html`<${AddItem} lib=${lib} onClose=${() => setAdding(false)} onAdd=${it => { setLib(l => ({ ...l, items: [...l.items, it] })); setAdding(false); setOpen(it.id); }} />` : null}
   </div>`;
 }
@@ -117,7 +116,7 @@ function ItemEditor({ item: i, lib, setItem, setPricing, remove }) {
         <${Field} label="Category"><${TextInput} value=${i.category} onChange=${v => setItem(i.id, { category: v })} /><//>
         <${Field} label="Subcategory"><${TextInput} value=${i.subcategory} onChange=${v => setItem(i.id, { subcategory: v })} /><//>
       </div>
-      <${Field} label="Dependencies" hint="Each group needs at least one of its items included, or provided by the AAIF foundation.">
+      <${Field} label="Dependencies" hint="Each group needs at least one of its items included, or provided by the foundation the quote builds on.">
         ${(i.dependsOn || []).map((g, gi) => html`<div class="row" style="margin-bottom:4px"><select multiple class="input" style="height:74px" aria-label="Dependency group" onChange=${e => { const sel = [...e.target.selectedOptions].map(o => o.value); const d = [...i.dependsOn]; d[gi] = sel; setItem(i.id, { dependsOn: d.filter(x => x.length) }); }}>${all.map(x => html`<option value=${x.id} selected=${g.includes(x.id)}>${x.name}</option>`)}</select><button class="icon-btn" aria-label="Remove group" onClick=${() => setItem(i.id, { dependsOn: i.dependsOn.filter((_, j) => j !== gi) })}>×</button></div>`)}
         <button class="btn small" onClick=${() => setItem(i.id, { dependsOn: [...(i.dependsOn || []), []] })}>Add dependency group</button><//>
       <${Field} label="Included work and notes (internal)"><${TextInput} multiline rows=${2} value=${i.sourceNotes} onChange=${v => setItem(i.id, { sourceNotes: v })} /><//>
@@ -170,42 +169,31 @@ function AddItem({ lib, onClose, onAdd }) {
     </div><//>`;
 }
 
-function CatalogueEditor({ api, cat, setCat, lib }) {
-  const [text, setText] = useState('');
-  const [msg, setMsg] = useState(null);
-  async function save(next) { const s = await api.saveCatalogue(next); setCat(s); toast('AAIF catalogue saved. New quotes use it.'); }
-  function importList() {
-    let added = [];
-    try {
-      const t = text.trim();
-      const incoming = t.startsWith('[') || t.startsWith('{') ? [].concat(JSON.parse(t).blocks || JSON.parse(t)).map(b => typeof b === 'string' ? { id: b } : b) : t.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean).map(id => ({ id }));
-      const have = new Set(cat.blocks.map(b => b.id));
-      added = incoming.filter(b => b.id && !have.has(b.id)).map(b => ({ id: b.id, name: b.name || blockLabel(b.id), documented: true }));
-      const next = { ...cat, blocks: [...cat.blocks, ...added], complete: cat.blocks.length + added.length >= (cat.expectedCount || 39) };
-      save(next); setText(''); setMsg(`${added.length} blocks added (${next.blocks.length} total).`);
-    } catch (e) { setMsg('Could not read that list: ' + e.message); }
-  }
+// What each quote type starts with. Presets only shape a new quote; Anyday edits every line afterwards.
+const PRESET_STATES = [{ value: '', label: 'Library default' }, { value: 'included', label: 'Included' }, { value: 'optional', label: 'Optional' }, { value: 'hidden', label: 'Hidden' }];
+function PresetsEditor({ lib, setItem }) {
+  const types = quoteTypes(lib);
+  const [sec, setSec] = useState('all');
+  const set = (it, type, patch) => {
+    const cur = { ...(it.presets?.[type] || {}), ...patch };
+    const presets = { ...(it.presets || {}) };
+    if (!cur.state) delete presets[type]; else { if (cur.state !== 'included' || cur.qty === null || cur.qty === undefined) delete cur.qty; presets[type] = cur; }
+    setItem(it.id, { presets });
+  };
+  const items = lib.items.filter(i => sec === 'all' || i.section === sec);
   return html`<div class="stack">
-    <div class="card"><h2>AAIF block catalogue</h2>
-      <p class="small">${cat.source}</p>
-      ${!cat.complete ? html`<div class="banner warn small">${cat.blocks.length} of ${cat.expectedCount} documented blocks loaded. Paste the full AAIF block list below to complete it.</div>` : html`<div class="banner ok small">Catalogue marked complete (${cat.blocks.length} blocks).</div>`}
-      <div class="blocks-grid" style="margin-top:10px">${cat.blocks.map((b, i) => html`<div class="block-row inline"><div class="grow"><${TextInput} value=${b.name} onChange=${v => save({ ...cat, blocks: cat.blocks.map((x, j) => j === i ? { ...x, name: v } : x) })} /><div class="tiny muted">${b.id}</div></div><button class="icon-btn" aria-label="Remove block" onClick=${() => save({ ...cat, blocks: cat.blocks.filter((_, j) => j !== i) })}>×</button></div>`)}</div>
-      <${Field} label="Add blocks" hint="One id per line, comma separated, or JSON [{id, name}]"><textarea class="input" rows="4" value=${text} onInput=${e => setText(e.target.value)}></textarea><//>
-      <div class="row" style="margin-top:8px"><button class="btn" disabled=${!text.trim()} onClick=${importList}>Add to catalogue</button>
-        <label class="check small"><input type="checkbox" checked=${cat.complete} onChange=${e => save({ ...cat, complete: e.target.checked })} /> Catalogue is complete</label>
-        <label class="field" style="display:flex;gap:6px;align-items:center"><span style="margin:0">Expected blocks</span><${NumInput} value=${cat.expectedCount} onChange=${v => save({ ...cat, expectedCount: v })} /></label></div>
-      ${msg ? html`<div class="small" style="margin-top:6px">${msg}</div>` : null}
-    </div>
-    <div class="card"><h2>Existing integrations</h2>
-      <table class="t"><thead><tr><th>Name</th><th>Confirmed</th><th>Source</th><th></th></tr></thead><tbody>
-        ${cat.integrations.map((x, i) => html`<tr><td><${TextInput} value=${x.name} onChange=${v => save({ ...cat, integrations: cat.integrations.map((y, j) => j === i ? { ...y, name: v } : y) })} /></td>
-          <td><input type="checkbox" checked=${!!x.confirmed} onChange=${e => save({ ...cat, integrations: cat.integrations.map((y, j) => j === i ? { ...y, confirmed: e.target.checked } : y) })} /></td><td class="small">${x.source}</td>
-          <td><button class="icon-btn" aria-label="Remove" onClick=${() => save({ ...cat, integrations: cat.integrations.filter((_, j) => j !== i) })}>×</button></td></tr>`)}
-      </tbody></table>
-      <button class="btn small" style="margin-top:8px" onClick=${() => save({ ...cat, integrations: [...cat.integrations, { id: 'integration_' + Date.now(), name: 'New integration', confirmed: false, source: 'Added in Quote Studio' }] })}>Add integration</button></div>
-    <div class="card"><h2>Capabilities the foundation provides by default</h2>
-      <p class="small">Applied to new quotes. Items that depend on these will not ask for the prerequisite to be charged again.</p>
-      <div class="blocks-grid">${lib.items.filter(i => i.section === 'base' && !i.isDesign).map(it => html`<label class="check small"><input type="checkbox" checked=${(cat.providedCapabilities || []).includes(it.id)} onChange=${e => save({ ...cat, providedCapabilities: e.target.checked ? [...(cat.providedCapabilities || []), it.id] : (cat.providedCapabilities || []).filter(x => x !== it.id) })} /> ${it.name}</label>`)}</div></div>
+    <div class="card"><h2>Quote type presets</h2>
+      <p class="small">When someone starts a quote, its type decides which lines begin included, optional or hidden, and with what starting quantity. Leave a quantity blank to have it filled from the website analysis. Existing quotes are never changed.</p>
+      <div class="grid3">${types.map(t => html`<div class="card" style="background:var(--surface-2)"><div class="caps">${t.usesFoundation === 'required' ? 'Needs a foundation' : 'Foundation optional'}</div><h2 style="font-size:20px">${t.name}</h2><p class="small" style="margin:0">${t.description}</p>
+        <div class="tiny muted" style="margin-top:8px">${lib.items.filter(i => i.presets?.[t.id]?.state === 'included').length} lines start included</div></div>`)}</div></div>
+    <div class="card" style="padding:12px 14px"><${Seg} value=${sec} options=${[{ value: 'all', label: 'All' }, ...lib.sections.map(s => ({ value: s.id, label: s.name }))]} onChange=${setSec} /></div>
+    <div class="card flush"><div class="scroll-x"><table class="t">
+      <thead><tr><th>Item</th>${types.map(t => html`<th>${t.name}</th>`)}</tr></thead>
+      <tbody>${items.map(it => html`<tr key=${it.id}><td><b>${it.name}</b><div class="tiny muted">${it.id}</div></td>
+        ${types.map(t => { const p = it.presets?.[t.id] || {}; return html`<td><div class="row" style="gap:6px;flex-wrap:nowrap">
+          <select class="input" style="width:auto" aria-label=${`${t.name}: ${it.name}`} value=${p.state || ''} onChange=${e => set(it, t.id, { state: e.target.value })}>${PRESET_STATES.map(o => html`<option value=${o.value}>${o.label}</option>`)}</select>
+          ${p.state === 'included' && it.pricing.model !== 'included' ? html`<${NumInput} cls="input" value=${p.qty ?? null} ariaLabel=${`Starting quantity, ${t.name}: ${it.name}`} onChange=${v => set(it, t.id, { qty: v })} />` : null}</div></td>`; })}</tr>`)}</tbody>
+    </table></div></div>
   </div>`;
 }
 void fmtMoney; void centsToInput;

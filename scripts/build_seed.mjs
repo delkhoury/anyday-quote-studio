@@ -1,8 +1,10 @@
-// Build seed data: AAIF catalogue and the three LF example quotes (provisional, dated examples).
+// Build seed data: the AAIF foundation and the three LF example quotes (provisional, dated examples).
+// These quotes are type "foundation_site": new sites on an existing foundation.
 import fs from 'node:fs';
 import path from 'node:path';
 import { newQuote, blockLabel } from '../shared/quote.js';
-import { normalizeUrl } from '../shared/inventory.js';
+import { catalogueToFoundation } from '../shared/migrate.js';
+import { normalizeUrl, siteKeyOf } from '../shared/inventory.js';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const library = JSON.parse(fs.readFileSync(path.join(root, 'shared/library-default.json'), 'utf8'));
@@ -21,8 +23,10 @@ const catalogue = {
   ],
   providedCapabilities: [],
 };
+const foundation = catalogueToFoundation(catalogue, { createdAt: '2026-10-06T00:00:00.000Z', updatedAt: '2026-10-06T00:00:00.000Z' });
 fs.mkdirSync(path.join(root, 'seed/quotes'), { recursive: true });
-fs.writeFileSync(path.join(root, 'shared/aaif-catalogue.json'), JSON.stringify(catalogue, null, 1));
+fs.mkdirSync(path.join(root, 'shared/foundations'), { recursive: true });
+fs.writeFileSync(path.join(root, 'shared/foundations/aaif.json'), JSON.stringify(foundation, null, 1));
 
 const MIG_ROW = {
   'Sites to activate': 'MIG_SITE_ACTIVATION', 'Bulk static pages': 'MIG_BULK_STATIC',
@@ -30,18 +34,19 @@ const MIG_ROW = {
 };
 const INVENTORY_ROW = { 'Level 1 composed pages': 'L1', 'Level 2 composed pages': 'L2', 'Level 3 simple pages': 'L3', 'Structured records': 'RECORD' };
 const INVENTORY_ITEM = { L1: 'MIG_L1_PAGE', L2: 'MIG_L2_PAGE', L3: 'MIG_L3_PAGE', RECORD: 'MIG_STRUCTURED_RECORDS' };
-// AAIF Option 1: reuse the existing foundation; do not select a new core build or expanded theme system.
+// Option 1: reuse the existing foundation; do not select a new core build or expanded theme system.
 const OPTION1_HIDDEN = ['BASE_CORE_PLATFORM', 'BASE_STD_BRAND_CONTROLS', 'BASE_ADV_BRAND_CONTROLS'];
 
 raw.examples.forEach((ex, idx) => {
-  const q = newQuote(library, catalogue, {
+  const q = newQuote(library, foundation, {
     client: ex.client, project: `${ex.short} website on the AAIF foundation`, url: ex.url,
-    number: `AQ-2026-${String(idx + 1).padStart(4, '0')}`,
+    number: `AQ-2026-${String(idx + 1).padStart(4, '0')}`, type: 'foundation_site', parentOrg: 'Linux Foundation',
   });
+  q.lines = {}; // the workbook decides every line, not the quote type presets
   q.id = `example-${ex.short.toLowerCase()}`;
   q.example = { label: `${ex.short} (Linux Foundation Option 1 example)`, workbook: ex.workbook, workbookDate: ex.workbookDate, provisional: true };
   const L = q.lines;
-  for (const id of OPTION1_HIDDEN) L[id] = { state: 'hidden', hiddenReason: 'AAIF Option 1 reuses the existing foundation' };
+  for (const id of OPTION1_HIDDEN) L[id] = { state: 'hidden', hiddenReason: 'Option 1 reuses the existing foundation' };
 
   for (const [k, v] of Object.entries(ex.baseQty)) {
     if (k.startsWith('DESIGN_')) continue;
@@ -49,20 +54,20 @@ raw.examples.forEach((ex, idx) => {
   }
   // design: unpriced, editable
   L.DESIGN_DIRECTION = { state: 'included', qty: 1, qtySource: 'example', design: { mode: 'additional' } };
-  L.DESIGN_EXISTING_BLOCKS = { state: 'included', qtySource: 'aaif', design: { mode: 'additional' } };
+  L.DESIGN_COMPONENTS = { state: 'included', qtySource: 'foundation', design: { mode: 'additional' } };
   L.DESIGN_PAGE_LAYOUTS = { state: 'included', qty: null, design: { mode: 'additional' } };
   L.DESIGN_REVIEWS = { state: 'included', qty: null, design: { mode: 'additional' } };
 
-  // AAIF blocks: workbook selection = redesign; everything else = brand application only
+  // foundation components: workbook selection = redesign; everything else = brand application only
   const sel = new Set(ex.blocks);
-  q.aaif.blocks = q.aaif.blocks.map(b => ({ ...b, treatment: sel.has(b.id) ? 'redesign' : 'brand', note: sel.has(b.id) ? 'Provisional selection from workbook' : '' }));
+  q.foundation.components = q.foundation.components.map(b => ({ ...b, treatment: sel.has(b.id) ? 'redesign' : 'brand', note: sel.has(b.id) ? 'Provisional selection from workbook' : '' }));
 
   // inventory (dated example, not a live scan)
   q.inventory = {
     source: { type: 'imported_example', label: `${ex.short} workbook Sitemap Analysis`, date: `${ex.workbookDate}T00:00:00Z`, provisional: true,
       note: 'Dated example inventory imported from the workbook. Not a fresh scan. Page levels and redesign selections are provisional.' },
     entries: ex.entries.map(e => ({
-      url: e.url, key: normalizeUrl(e.url), status: null, origin: 'imported_example',
+      url: e.url, key: normalizeUrl(e.url), status: null, origin: 'imported_example', groupId: 'main', siteKey: siteKeyOf(e.url),
       findings: {
         title: e.title, contentType: e.contentType, category: e.category, include: e.include, reason: e.reason,
         evidence: `Workbook import: ${e.evidence}`, confidence: e.confidence, sourceCmsType: e.sourceCmsType, sitemap: e.sitemap,
@@ -95,7 +100,7 @@ raw.examples.forEach((ex, idx) => {
     'Media volume is a planning allowance. A public sitemap does not establish the size of the media library, so the allowance will be confirmed against a CMS media export.',
     'Redirect volume is a maximum planning allowance. URLs that keep their path need no redirect.',
     'Generated tag, category and author archives are regenerated from migrated content and are not charged per URL.',
-    'Redesigned AAIF blocks keep their existing schema and behaviour.',
+    'Redesigned components keep their existing schema and behaviour.',
   ];
   if (ex.short === 'CNCF') q.proposal.assumptions.push('Record content types were inferred from URLs. Source CMS types will be verified from a CMS export.');
   if (ex.short === 'PyTorch') q.proposal.assumptions.push('Eight existing WordPress pages are proposed as structured records in the new content model, pending review.');

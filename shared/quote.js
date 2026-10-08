@@ -3,7 +3,15 @@
 
 import { diffSnapshots } from './pricing.js';
 
-export const QUOTE_SCHEMA_VERSION = 1;
+export const QUOTE_SCHEMA_VERSION = 2;
+
+export const QUOTE_TYPES_FALLBACK = [
+  { id: 'new_platform', name: 'New platform and rollout', description: 'Build a new multisite platform from scratch, then roll out the portfolio of sites onto it.', usesFoundation: 'optional', sitesStep: true },
+  { id: 'foundation_site', name: 'New site on an existing foundation', description: 'Build a site for a sub brand or sister organisation by reusing a platform foundation Anyday already built.', usesFoundation: 'required', sitesStep: false },
+  { id: 'expansion', name: 'Expand a platform we already run', description: 'Add new sites to a live Anyday platform. Volume pricing continues from the sites already live.', usesFoundation: 'required', sitesStep: true },
+];
+export function quoteTypes(libraryOrSnapshot) { return libraryOrSnapshot?.quoteTypes?.length ? libraryOrSnapshot.quoteTypes : QUOTE_TYPES_FALLBACK; }
+export function quoteTypeOf(quote) { return quoteTypes(quote.pricingSnapshot).find(t => t.id === quote.type) || QUOTE_TYPES_FALLBACK[1]; }
 
 export function snapshotFromLibrary(library) {
   return {
@@ -12,6 +20,7 @@ export function snapshotFromLibrary(library) {
     libraryUpdatedAt: library.updatedAt,
     currency: library.currency || 'USD',
     takenAt: new Date().toISOString(),
+    quoteTypes: JSON.parse(JSON.stringify(quoteTypes(library))),
     sections: JSON.parse(JSON.stringify(library.sections)),
     items: JSON.parse(JSON.stringify(library.items)),
   };
@@ -21,14 +30,42 @@ export function blockLabel(id) {
   return id.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase()).replace(/\bFaq\b/, 'FAQ');
 }
 
-export function defaultAaif(catalogue) {
+// ---------------------------------------------------------------------------
+// Foundations: reusable platforms (component library, content models,
+// integrations, capabilities). A quote keeps its own snapshot of the foundation,
+// so editing a foundation never changes a quote that was already prepared.
+// ---------------------------------------------------------------------------
+export function emptyFoundation(fields = {}) {
   return {
-    foundationReused: true,
-    catalogue: { complete: catalogue.complete, expectedCount: catalogue.expectedCount, source: catalogue.source },
-    blocks: catalogue.blocks.map(b => ({ id: b.id, name: b.name || blockLabel(b.id), treatment: 'brand', note: '' })),
-    integrations: (catalogue.integrations || []).map(i => ({ ...i, existingMeetsRequirement: null, pricedAs: null, note: '' })),
-    providedCapabilities: catalogue.providedCapabilities || [],
+    schemaVersion: 1, id: '', name: '', owner: '', description: '', archived: false,
+    complete: false, expectedComponents: null, source: '',
+    components: [], contentModels: [], integrations: [], providedCapabilities: [], notes: '', documents: [],
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...fields,
   };
+}
+
+export function snapshotFoundation(f, previous = null) {
+  if (!f) return null;
+  const prevComp = Object.fromEntries((previous?.components || []).map(c => [c.id, c]));
+  const prevInteg = Object.fromEntries((previous?.integrations || []).map(i => [i.id, i]));
+  const extraComp = (previous?.components || []).filter(c => c.addedInQuote && !f.components.some(x => x.id === c.id));
+  return {
+    id: f.id, name: f.name, owner: f.owner || '', updatedAt: f.updatedAt, takenAt: new Date().toISOString(),
+    complete: !!f.complete, expectedComponents: f.expectedComponents ?? null, source: f.source || '',
+    components: [...f.components.map(c => ({ id: c.id, name: c.name || blockLabel(c.id), kind: c.kind || '', treatment: prevComp[c.id]?.treatment || 'brand', note: prevComp[c.id]?.note || '' })), ...extraComp],
+    contentModels: JSON.parse(JSON.stringify(f.contentModels || [])),
+    integrations: (f.integrations || []).map(i => ({ ...i, existingMeetsRequirement: prevInteg[i.id]?.existingMeetsRequirement ?? null, pricedAs: prevInteg[i.id]?.pricedAs ?? null, note: prevInteg[i.id]?.note || '' })),
+    providedCapabilities: [...(f.providedCapabilities || [])],
+  };
+}
+
+export function applyFoundation(q, foundation) {
+  const now = new Date().toISOString();
+  return { ...q, foundation: snapshotFoundation(foundation, q.foundation?.id === foundation.id ? q.foundation : null), history: [...(q.history || []), { at: now, kind: 'applied_foundation', foundation: foundation.id, updatedAt: foundation.updatedAt }] };
+}
+
+export function defaultSiteGroups(type, url = '') {
+  return [{ id: 'main', name: type === 'foundation_site' ? 'Website' : 'Site type 1', count: 1, samples: url ? [{ url }] : [], manual: null, notes: '' }];
 }
 
 export function defaultProposal() {
@@ -37,7 +74,7 @@ export function defaultProposal() {
     assumptions: [],
     autoAssumptions: [],
     exclusions: [
-      'Functional changes to redesigned AAIF blocks, such as new fields, filters or workflows, unless listed in this proposal.',
+      'Functional changes to redesigned components, such as new fields, filters or workflows, unless listed in this proposal.',
       'Content, sites and URLs outside the reviewed inventory.',
     ],
     paymentTerms: '',
@@ -48,24 +85,57 @@ export function defaultProposal() {
   };
 }
 
-export function newQuote(library, catalogue, { client = '', project = '', url = '', number = '', preparedBy = 'Anyday' } = {}) {
+// Starter assumptions per quote type (editable on the quote).
+export function typeAssumptions(type, foundationName = '') {
+  const f = foundationName || 'the existing foundation';
+  if (type === 'new_platform') return [
+    'This proposal includes building a new shared multisite platform. Every site in the portfolio runs on it.',
+    'Where sites are grouped into site types, migration volumes are extrapolated from the sampled sites in each type and will be confirmed during discovery.',
+    'Media volume is a planning allowance until verified against a CMS media export.',
+    'Redirect volume is a planning allowance. URLs that keep their path need no redirect.',
+  ];
+  if (type === 'expansion') return [
+    `New sites join the live ${f} platform. No new platform build is included.`,
+    'Site activation pricing continues from the volume tier reached by the sites already live.',
+    'Where sites are grouped into site types, migration volumes are extrapolated from the sampled sites in each type and will be confirmed during discovery.',
+  ];
+  return [
+    `This proposal reuses ${f}: its components, content models and integrations. No new core platform or expanded theme system is included.`,
+    'Redesigned components keep their existing schema and behaviour.',
+    'Media volume is a planning allowance until verified against a CMS media export.',
+    'Redirect volume is a planning allowance. URLs that keep their path need no redirect.',
+  ];
+}
+
+export function newQuote(library, foundation, { client = '', project = '', url = '', number = '', preparedBy = 'Anyday', type = 'foundation_site', parentOrg = '', existingLiveSites = 0 } = {}) {
   const now = new Date().toISOString();
+  const lines = {};
+  for (const it of library.items) {
+    const p = it.presets?.[type];
+    if (!p) continue;
+    lines[it.id] = { state: p.state, ...(p.qty !== undefined ? { qty: p.qty } : {}), ...(p.state === 'included' ? { qtySource: 'preset' } : {}) };
+  }
+  if (type === 'expansion' && lines.MIG_SITE_ACTIVATION) lines.MIG_SITE_ACTIVATION.priorQty = existingLiveSites || 0;
+  const fsnap = foundation ? snapshotFoundation(foundation) : null;
   return {
     schemaVersion: QUOTE_SCHEMA_VERSION,
     id: cryptoId(),
     number,
+    type,
     createdAt: now, updatedAt: now,
-    client: { name: client, contact: '' },
+    client: { name: client, contact: '', parentOrg },
     project: { name: project, url },
     preparedBy,
     pricingSnapshot: snapshotFromLibrary(library),
-    lines: {},
+    lines,
     sectionOverrides: {},
-    aaif: defaultAaif(catalogue),
+    foundation: fsnap,
+    portfolio: { existingLiveSites: type === 'expansion' ? (existingLiveSites || 0) : 0, siteList: [] },
+    siteGroups: defaultSiteGroups(type, url),
     inventory: { source: null, entries: [], scans: [], templates: [], media: { discovered: null, imageSitemap: null, verified: null } },
-    proposal: defaultProposal(),
+    proposal: { ...defaultProposal(), assumptions: typeAssumptions(type, fsnap?.name) },
     provisional: [],
-    history: [{ at: now, kind: 'created', libraryVersion: library.version }],
+    history: [{ at: now, kind: 'created', libraryVersion: library.version, type, foundation: fsnap?.id || null }],
   };
 }
 

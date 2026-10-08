@@ -1,0 +1,2858 @@
+{
+ "schemaVersion": 1,
+ "name": "Anyday WebOps Pricing Library",
+ "version": "2026-10-01",
+ "currency": "USD",
+ "updatedAt": "2026-10-07T20:06:54Z",
+ "source": {
+  "workbook": "Pricing Calculator - Anyday WebOps Implementation (Google Sheet, modified 2026-10-01)",
+  "tab": "Pricing Library",
+  "note": "Prices, units and pattern keys from the Pricing Library tab. Section mapping from calculator tabs 01, 02 and 03."
+ },
+ "sections": [
+  {
+   "id": "base",
+   "name": "WebOps Base + Design",
+   "order": 1,
+   "sourceTab": "01. WebOps Base Calculator",
+   "intro": "The shared implementation and design work built once and reused across the site."
+  },
+  {
+   "id": "migration",
+   "name": "Migration",
+   "order": 2,
+   "sourceTab": "02. Migration Calculator",
+   "intro": "Moving the site's pages, records, media and URLs onto the platform."
+  },
+  {
+   "id": "extensions",
+   "name": "Platform Extensions",
+   "order": 3,
+   "sourceTab": "03. Platform Extensions Calculator",
+   "intro": "Supported configuration and cleanup beyond core migration volume."
+  }
+ ],
+ "items": [
+  {
+   "id": "BASE_CORE_PLATFORM",
+   "keys": [
+    "BASE_CORE_PLATFORM"
+   ],
+   "name": "Core multisite platform",
+   "what": "A new shared multisite platform built from scratch: CMS, front end framework, hosting pipeline and shared foundations.",
+   "receives": "A production ready platform that every current and future site can run on.",
+   "sourceNotes": "Foundation layer used by every future site.",
+   "phase": "Base",
+   "category": "Design + Experience",
+   "subcategory": "Platform",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 7500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_STD_PAGE_TEMPLATE",
+   "keys": [
+    "BASE_STD_PAGE_TEMPLATE"
+   ],
+   "name": "Standard reusable page template",
+   "what": "A new reusable page structure built once for the platform.",
+   "receives": "One new page template editors can reuse on any site.",
+   "sourceNotes": "Repeatable page structure built once.",
+   "phase": "Base",
+   "category": "Design + Experience",
+   "subcategory": "Additional Page Types",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_ADV_PAGE_TEMPLATE",
+   "keys": [
+    "BASE_ADV_PAGE_TEMPLATE"
+   ],
+   "name": "Advanced reusable page template",
+   "what": "A new reusable page structure with complex layout or behaviour.",
+   "receives": "One advanced page template with its interactive behaviour.",
+   "sourceNotes": "Complex reusable page structure or behavior.",
+   "phase": "Base",
+   "category": "Design + Experience",
+   "subcategory": "Additional Page Types",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_STD_COMPONENT",
+   "keys": [
+    "BASE_STD_COMPONENT"
+   ],
+   "name": "Standard reusable component",
+   "what": "A new reusable content block added to the shared library.",
+   "receives": "One new block with its fields, rendering and editor experience.",
+   "sourceNotes": "Reusable content component.",
+   "phase": "Base",
+   "category": "Design + Experience",
+   "subcategory": "Custom Components",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_ADV_COMPONENT",
+   "keys": [
+    "BASE_ADV_COMPONENT"
+   ],
+   "name": "Advanced reusable component",
+   "what": "A new reusable block with complex behaviour, data or interaction.",
+   "receives": "One advanced block with its fields, logic, rendering and editor experience.",
+   "sourceNotes": "Complex reusable component.",
+   "phase": "Base",
+   "category": "Design + Experience",
+   "subcategory": "Custom Components",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_STRUCT_CONTENT_MODEL",
+   "keys": [
+    "BASE_STRUCT_CONTENT_MODEL"
+   ],
+   "name": "Structured content model",
+   "what": "A new repeatable content type such as news, events, people, projects or resources.",
+   "receives": "One content model with fields, editor views and listing or detail rendering.",
+   "sourceNotes": "News, events, people, projects, resources, etc.",
+   "phase": "Base",
+   "category": "Content + Migration",
+   "subcategory": "Content Models",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_STD_BRAND_CONTROLS",
+   "keys": [
+    "BASE_STD_BRAND_CONTROLS"
+   ],
+   "name": "Standard brand controls",
+   "what": "Global brand controls for colours, typography and logos.",
+   "receives": "A brand control set editors can use to theme a site.",
+   "sourceNotes": "Colors, typography, logos and core global controls.",
+   "phase": "Base",
+   "category": "Design + Experience",
+   "subcategory": "Brand Variations",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 1000000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_ADV_BRAND_CONTROLS",
+   "keys": [
+    "BASE_ADV_BRAND_CONTROLS"
+   ],
+   "name": "Advanced brand controls",
+   "what": "Expanded theme system covering radius, spacing, widths, imagery, headers, footers and section variation.",
+   "receives": "An advanced theme control set for deeper brand variation between sites.",
+   "sourceNotes": "Radius, spacing, widths, imagery, headers, footers and section variation.",
+   "phase": "Base",
+   "category": "Design + Experience",
+   "subcategory": "Brand Variations",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 2000000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_GLOBAL_DESIGN_CONTROL",
+   "keys": [
+    "BASE_GLOBAL_DESIGN_CONTROL"
+   ],
+   "name": "Additional global design control",
+   "what": "One additional global styling control added to the theme system.",
+   "receives": "One new reusable design control.",
+   "sourceNotes": "New reusable styling control.",
+   "phase": "Base",
+   "category": "Design + Experience",
+   "subcategory": "Brand Variations",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 150000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_SHARED_INTEGRATION_EXISTING",
+   "keys": [
+    "BASE_SHARED_INTEGRATION_EXISTING"
+   ],
+   "name": "Existing shared integration",
+   "what": "Enable an integration the platform already supports.",
+   "receives": "The integration switched on and configured for shared use.",
+   "sourceNotes": "Enable an integration already supported.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "APIs + 3rd Party Systems",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_SHARED_INTEGRATION_NEW",
+   "keys": [
+    "BASE_SHARED_INTEGRATION_NEW"
+   ],
+   "name": "New shared integration",
+   "what": "A new reusable integration added to the shared platform.",
+   "receives": "A new integration available to every site.",
+   "sourceNotes": "New reusable integration added to base.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "APIs + 3rd Party Systems",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "starting_at",
+    "sourceUnit": "starting",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_NEW_SIMPLE_API",
+   "keys": [
+    "BASE_NEW_SIMPLE_API"
+   ],
+   "name": "New simple API integration",
+   "what": "Connect one external service with a simple read or write.",
+   "receives": "A working connection to one external service.",
+   "sourceNotes": "Single service, simple read/write.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "APIs + 3rd Party Systems",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_NEW_ADV_API",
+   "keys": [
+    "BASE_NEW_ADV_API"
+   ],
+   "name": "New advanced API integration",
+   "what": "Connect a service with multiple endpoints, authentication, transforms, sync or error handling.",
+   "receives": "A robust connection to one complex external service.",
+   "sourceNotes": "Multiple endpoints, auth, transforms, sync or error handling.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "APIs + 3rd Party Systems",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 1000000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_ENDPOINT",
+   "keys": [
+    "BASE_ENDPOINT"
+   ],
+   "name": "Additional API endpoint",
+   "what": "One more endpoint on an existing API connection.",
+   "receives": "One additional endpoint wired into the platform.",
+   "sourceNotes": "Additional endpoint.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "APIs + 3rd Party Systems",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 150000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [
+    [
+     "BASE_NEW_SIMPLE_API",
+     "BASE_NEW_ADV_API",
+     "BASE_SHARED_INTEGRATION_EXISTING",
+     "BASE_SHARED_INTEGRATION_NEW"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_WEBHOOK",
+   "keys": [
+    "BASE_WEBHOOK"
+   ],
+   "name": "Webhook workflow",
+   "what": "An automated workflow triggered by an event in another system.",
+   "receives": "One reusable webhook workflow.",
+   "sourceNotes": "Reusable webhook workflow.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "APIs + 3rd Party Systems",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 150000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_DATA_SOURCE",
+   "keys": [
+    "BASE_DATA_SOURCE"
+   ],
+   "name": "New structured data source",
+   "what": "A new external data source feeding structured content.",
+   "receives": "One reusable data source connection.",
+   "sourceNotes": "New reusable external data source.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "Complex Data Integrations",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_COMPLEX_SYNC_SOURCE",
+   "keys": [
+    "BASE_COMPLEX_SYNC_SOURCE"
+   ],
+   "name": "Complex synchronized data source",
+   "what": "An external data source kept in ongoing sync with the platform.",
+   "receives": "One continuously synchronised data source.",
+   "sourceNotes": "Ongoing synchronized external data source.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "Complex Data Integrations",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 1000000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_DATA_MAPPING",
+   "keys": [
+    "BASE_DATA_MAPPING"
+   ],
+   "name": "Additional data mapping",
+   "what": "One additional mapping between external data and platform content.",
+   "receives": "One reusable data mapping.",
+   "sourceNotes": "Additional reusable mapping.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "Complex Data Integrations",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 150000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [
+    [
+     "BASE_DATA_SOURCE",
+     "BASE_COMPLEX_SYNC_SOURCE"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_SCHEDULED_SYNC",
+   "keys": [
+    "BASE_SCHEDULED_SYNC"
+   ],
+   "name": "Scheduled synchronization",
+   "what": "A data sync that runs on a schedule.",
+   "receives": "One reusable scheduled synchronisation.",
+   "sourceNotes": "Reusable scheduled data sync.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "Complex Data Integrations",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [
+    [
+     "BASE_DATA_SOURCE",
+     "BASE_COMPLEX_SYNC_SOURCE"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_SITE_SEARCH",
+   "keys": [
+    "BASE_SITE_SEARCH"
+   ],
+   "name": "Standard site search",
+   "what": "Standard search across site content.",
+   "receives": "A reusable site search capability.",
+   "sourceNotes": "Reusable search capability.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "Search Integrations",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_FACETED_SEARCH",
+   "keys": [
+    "BASE_FACETED_SEARCH"
+   ],
+   "name": "Faceted search",
+   "what": "Search with filters and facets.",
+   "receives": "Filterable search results with facets.",
+   "sourceNotes": "Filtering and faceting.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "Search Integrations",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_EXTERNAL_SEARCH",
+   "keys": [
+    "BASE_EXTERNAL_SEARCH"
+   ],
+   "name": "External search platform integration",
+   "what": "Connect an external search platform such as Algolia or Elastic.",
+   "receives": "Search powered by the chosen external platform.",
+   "sourceNotes": "Algolia, Elastic or similar.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "Search Integrations",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_SEARCH_INDEX",
+   "keys": [
+    "BASE_SEARCH_INDEX"
+   ],
+   "name": "Additional search index",
+   "what": "One more search index for a distinct content set.",
+   "receives": "One additional reusable search index.",
+   "sourceNotes": "Additional reusable search index.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "Search Integrations",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 150000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [
+    [
+     "BASE_SITE_SEARCH",
+     "BASE_FACETED_SEARCH",
+     "BASE_EXTERNAL_SEARCH"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_MULTI_CONTENT_SEARCH",
+   "keys": [
+    "BASE_MULTI_CONTENT_SEARCH"
+   ],
+   "name": "Search across multiple content types",
+   "what": "Unified search across several content types.",
+   "receives": "One search experience spanning multiple content models.",
+   "sourceNotes": "Unified search across models.",
+   "phase": "Base",
+   "category": "Integrations",
+   "subcategory": "Search Integrations",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [
+    [
+     "BASE_SITE_SEARCH",
+     "BASE_FACETED_SEARCH",
+     "BASE_EXTERNAL_SEARCH"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_TRANSLATION_INTEGRATION",
+   "keys": [
+    "BASE_TRANSLATION_INTEGRATION"
+   ],
+   "name": "Translation API connection",
+   "what": "Connect a translation service to the platform.",
+   "receives": "A reusable translation integration.",
+   "sourceNotes": "Reusable translation integration.",
+   "phase": "Base",
+   "category": "Content + Migration",
+   "subcategory": "Translation Integration",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_LOCALIZATION_ARCH",
+   "keys": [
+    "BASE_LOCALIZATION_ARCH"
+   ],
+   "name": "Localization architecture",
+   "what": "Locale architecture and routing for multilingual sites.",
+   "receives": "Reusable locale structure, routing and editor support.",
+   "sourceNotes": "Reusable locale architecture and routing.",
+   "phase": "Base",
+   "category": "Content + Migration",
+   "subcategory": "Localization",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 350000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_ECOMMERCE_SIMPLE",
+   "keys": [
+    "BASE_ECOMMERCE_SIMPLE"
+   ],
+   "name": "Simple donation or payment flow",
+   "what": "A simple donation or payment flow.",
+   "receives": "One reusable payment or donation flow.",
+   "sourceNotes": "Reusable simple payment flow.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "eCommerce",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 350000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_ECOMMERCE_PLATFORM",
+   "keys": [
+    "BASE_ECOMMERCE_PLATFORM"
+   ],
+   "name": "Commerce platform integration",
+   "what": "Connect a commerce platform.",
+   "receives": "A reusable commerce platform connection.",
+   "sourceNotes": "Reusable commerce platform connection.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "eCommerce",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_PRODUCT_CATALOG",
+   "keys": [
+    "BASE_PRODUCT_CATALOG"
+   ],
+   "name": "Product catalogue",
+   "what": "A product catalogue content structure and display.",
+   "receives": "A reusable product catalogue.",
+   "sourceNotes": "Reusable product catalogue.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "eCommerce",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 750000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [
+    [
+     "BASE_ECOMMERCE_PLATFORM",
+     "BASE_FULL_COMMERCE"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_FULL_COMMERCE",
+   "keys": [
+    "BASE_FULL_COMMERCE"
+   ],
+   "name": "Full commerce implementation",
+   "what": "A full commerce implementation.",
+   "receives": "A complete commerce capability, scoped in detail before confirmation.",
+   "sourceNotes": "Starting point for full commerce.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "eCommerce",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 1500000,
+    "status": "starting_at",
+    "sourceUnit": "starting",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_AUTH_AREA",
+   "keys": [
+    "BASE_AUTH_AREA"
+   ],
+   "name": "Basic authenticated area",
+   "what": "A signed in area for members.",
+   "receives": "A reusable authenticated member area.",
+   "sourceNotes": "Reusable authenticated member area.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "Member Portals",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 750000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_USER_PROFILES",
+   "keys": [
+    "BASE_USER_PROFILES"
+   ],
+   "name": "User profiles",
+   "what": "Member profiles.",
+   "receives": "A reusable profile capability.",
+   "sourceNotes": "Reusable profile capability.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "Member Portals",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [
+    [
+     "BASE_AUTH_AREA",
+     "BASE_COMPLEX_PORTAL"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_DASHBOARD",
+   "keys": [
+    "BASE_DASHBOARD"
+   ],
+   "name": "Dashboard",
+   "what": "A member dashboard.",
+   "receives": "A reusable dashboard.",
+   "sourceNotes": "Reusable dashboard.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "Member Portals",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [
+    [
+     "BASE_AUTH_AREA",
+     "BASE_COMPLEX_PORTAL"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_ROLE_PERMISSIONS",
+   "keys": [
+    "BASE_ROLE_PERMISSIONS"
+   ],
+   "name": "Role based permissions",
+   "what": "Role based permissions for members or editors.",
+   "receives": "A reusable permission model.",
+   "sourceNotes": "Reusable permission model.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "Member Portals",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 350000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [
+    [
+     "BASE_AUTH_AREA",
+     "BASE_COMPLEX_PORTAL"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_IDP",
+   "keys": [
+    "BASE_IDP"
+   ],
+   "name": "External identity provider",
+   "what": "Single sign on or an external identity provider.",
+   "receives": "Sign in through the chosen identity provider.",
+   "sourceNotes": "SSO or external identity provider.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "Member Portals",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_COMPLEX_PORTAL",
+   "keys": [
+    "BASE_COMPLEX_PORTAL"
+   ],
+   "name": "Complex portal",
+   "what": "A complex member portal.",
+   "receives": "A portal capability, scoped in detail before confirmation.",
+   "sourceNotes": "Starting point for a complex portal.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "Member Portals",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 2000000,
+    "status": "starting_at",
+    "sourceUnit": "starting",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_GATED_RESOURCE",
+   "keys": [
+    "BASE_GATED_RESOURCE"
+   ],
+   "name": "Simple gated resource",
+   "what": "A resource that requires a simple gate before access.",
+   "receives": "A reusable gated content pattern.",
+   "sourceNotes": "Reusable gated content pattern.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "Gated Content",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_REG_GATE",
+   "keys": [
+    "BASE_REG_GATE"
+   ],
+   "name": "Registration gate",
+   "what": "Content unlocked by registration.",
+   "receives": "A reusable registration gate.",
+   "sourceNotes": "Reusable registration gate.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "Gated Content",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 350000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_CRM_GATE",
+   "keys": [
+    "BASE_CRM_GATE"
+   ],
+   "name": "CRM connected gate",
+   "what": "Gated content connected to the CRM.",
+   "receives": "A reusable CRM connected gate.",
+   "sourceNotes": "Reusable CRM connected gate.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "Gated Content",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_ROLE_GATE",
+   "keys": [
+    "BASE_ROLE_GATE"
+   ],
+   "name": "Role based gated content",
+   "what": "Content gated by member role.",
+   "receives": "Reusable role based gating.",
+   "sourceNotes": "Reusable role based gating.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "Gated Content",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "each",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [
+    [
+     "BASE_ROLE_PERMISSIONS"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_SIMPLE_TOOL",
+   "keys": [
+    "BASE_SIMPLE_TOOL"
+   ],
+   "name": "Simple interactive tool",
+   "what": "A reusable interactive tool such as a selector, calculator or explorer.",
+   "receives": "One interactive tool, scoped in detail before confirmation.",
+   "sourceNotes": "Starting point for a reusable interactive tool.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "Custom Applications",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 750000,
+    "status": "starting_at",
+    "sourceUnit": "starting",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "BASE_DATA_APP",
+   "keys": [
+    "BASE_DATA_APP"
+   ],
+   "name": "Data driven application",
+   "what": "A data driven application inside the platform.",
+   "receives": "One data driven application, scoped in detail before confirmation.",
+   "sourceNotes": "Starting point for a reusable data driven app.",
+   "phase": "Base",
+   "category": "Extended Capabilities",
+   "subcategory": "Custom Applications",
+   "section": "base",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 1500000,
+    "status": "starting_at",
+    "sourceUnit": "starting",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_SITE_ACTIVATION",
+   "keys": [
+    "MIG_SITE_ACTIVATION_1_10",
+    "MIG_SITE_ACTIVATION_11_50",
+    "MIG_SITE_ACTIVATION_51_100",
+    "MIG_SITE_ACTIVATION_101_PLUS"
+   ],
+   "name": "Site activation",
+   "what": "Set up each site on the platform: CMS project, settings, deployment, QA, domain and launch.",
+   "receives": "Each site live on the platform.",
+   "sourceNotes": "CMS setup, settings, deployment, QA, domain and launch.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Site Activation",
+   "section": "migration",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "progressive",
+    "status": "confirmed",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites",
+    "sourceUnit": "site",
+    "tiers": [
+     {
+      "key": "MIG_SITE_ACTIVATION_1_10",
+      "label": "Sites 1 to 10",
+      "upTo": 10,
+      "price": 250000
+     },
+     {
+      "key": "MIG_SITE_ACTIVATION_11_50",
+      "label": "Sites 11 to 50",
+      "upTo": 50,
+      "price": 175000
+     },
+     {
+      "key": "MIG_SITE_ACTIVATION_51_100",
+      "label": "Sites 51 to 100",
+      "upTo": 100,
+      "price": 125000
+     },
+     {
+      "key": "MIG_SITE_ACTIVATION_101_PLUS",
+      "label": "Sites 101 plus",
+      "upTo": null,
+      "price": 75000
+     }
+    ]
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_L1_PAGE",
+   "keys": [
+    "MIG_L1_PAGE"
+   ],
+   "name": "Level 1 composed page migration",
+   "what": "A major page requiring substantial assembly.",
+   "receives": "The page rebuilt on the platform with its content and blocks.",
+   "sourceNotes": "Major page requiring meaningful assembly.",
+   "phase": "Migration",
+   "category": "Design + Experience",
+   "subcategory": "Additional Page Types",
+   "section": "migration",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 100000,
+    "status": "confirmed",
+    "sourceUnit": "page",
+    "qtyUnit": "page",
+    "qtyUnitPlural": "pages"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_L2_PAGE",
+   "keys": [
+    "MIG_L2_PAGE"
+   ],
+   "name": "Level 2 composed page migration",
+   "what": "A supporting page assembled from established patterns.",
+   "receives": "The page rebuilt on the platform from existing blocks.",
+   "sourceNotes": "Supporting page assembled from established patterns.",
+   "phase": "Migration",
+   "category": "Design + Experience",
+   "subcategory": "Additional Page Types",
+   "section": "migration",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 50000,
+    "status": "confirmed",
+    "sourceUnit": "page",
+    "qtyUnit": "page",
+    "qtyUnitPlural": "pages"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_L3_PAGE",
+   "keys": [
+    "MIG_L3_PAGE"
+   ],
+   "name": "Level 3 simple page migration",
+   "what": "A simple, standardised page with limited assembly.",
+   "receives": "The page migrated into a standard layout.",
+   "sourceNotes": "Simple standardized page.",
+   "phase": "Migration",
+   "category": "Design + Experience",
+   "subcategory": "Additional Page Types",
+   "section": "migration",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 25000,
+    "status": "confirmed",
+    "sourceUnit": "page",
+    "qtyUnit": "page",
+    "qtyUnitPlural": "pages"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_BULK_STATIC",
+   "keys": [
+    "MIG_STATIC_FIRST_50",
+    "MIG_STATIC_ADD_50"
+   ],
+   "name": "Bulk static pages",
+   "what": "Near identical static pages migrated in bulk instead of page by page.",
+   "receives": "The page set migrated with a shared layout.",
+   "sourceNotes": "Use instead of composed page pricing when pages are near identical. Additional block.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Content Migration",
+   "section": "migration",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "batched",
+    "status": "confirmed",
+    "qtyUnit": "page",
+    "qtyUnitPlural": "pages",
+    "sourceUnit": "block",
+    "first": {
+     "key": "MIG_STATIC_FIRST_50",
+     "size": 50,
+     "price": 350000
+    },
+    "additional": {
+     "key": "MIG_STATIC_ADD_50",
+     "size": 50,
+     "price": 250000
+    }
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_STRUCTURED_RECORDS",
+   "keys": [
+    "MIG_DYNAMIC_FIRST_500",
+    "MIG_DYNAMIC_ADD_500"
+   ],
+   "name": "Structured records",
+   "what": "Repeatable content such as articles, news, events, people, projects and resources.",
+   "receives": "Records migrated into structured content models.",
+   "sourceNotes": "Blogs, news, events, people, members, projects and similar. Applied in 500 record blocks.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Content Migration",
+   "section": "migration",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "batched",
+    "status": "confirmed",
+    "qtyUnit": "record",
+    "qtyUnitPlural": "records",
+    "sourceUnit": "block",
+    "first": {
+     "key": "MIG_DYNAMIC_FIRST_500",
+     "size": 500,
+     "price": 500000
+    },
+    "additional": {
+     "key": "MIG_DYNAMIC_ADD_500",
+     "size": 500,
+     "price": 350000
+    }
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_CONTENT_TYPE_MAP",
+   "keys": [
+    "MIG_CONTENT_TYPE_MAP"
+   ],
+   "name": "Source content type mapping",
+   "what": "Map each legacy content type to its new content model.",
+   "receives": "A documented, implemented mapping for each source content type.",
+   "sourceNotes": "Legacy content type to new model.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Content Migration",
+   "section": "migration",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 150000,
+    "status": "confirmed",
+    "sourceUnit": "type",
+    "qtyUnit": "content type",
+    "qtyUnitPlural": "content types"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_MEDIA",
+   "keys": [
+    "MIG_MEDIA_FIRST_1000",
+    "MIG_MEDIA_ADD_1000"
+   ],
+   "name": "Media assets",
+   "what": "Images, files and other media moved into the new media library.",
+   "receives": "Media assets migrated and linked to their content.",
+   "sourceNotes": "Images, files and media. Applied in 1,000 asset blocks.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Content Migration",
+   "section": "migration",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "batched",
+    "status": "confirmed",
+    "qtyUnit": "asset",
+    "qtyUnitPlural": "assets",
+    "sourceUnit": "block",
+    "first": {
+     "key": "MIG_MEDIA_FIRST_1000",
+     "size": 1000,
+     "price": 250000
+    },
+    "additional": {
+     "key": "MIG_MEDIA_ADD_1000",
+     "size": 1000,
+     "price": 150000
+    }
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_REDIRECTS",
+   "keys": [
+    "MIG_REDIRECT_250",
+    "MIG_REDIRECT_ADD_250"
+   ],
+   "name": "Redirect mapping",
+   "what": "Old URLs that change are mapped to their new location.",
+   "receives": "A tested redirect map for the URLs that change.",
+   "sourceNotes": "First redirect block. Additional redirect block.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Redirects",
+   "section": "migration",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "batched",
+    "status": "confirmed",
+    "qtyUnit": "redirect",
+    "qtyUnitPlural": "redirects",
+    "sourceUnit": "block",
+    "first": {
+     "key": "MIG_REDIRECT_250",
+     "size": 250,
+     "price": 150000
+    },
+    "additional": {
+     "key": "MIG_REDIRECT_ADD_250",
+     "size": 250,
+     "price": 75000
+    }
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_BASIC_CLEANUP",
+   "keys": [
+    "MIG_BASIC_CLEANUP"
+   ],
+   "name": "Basic migration cleanup",
+   "what": "Basic automated cleanup during migration.",
+   "receives": "Content imported with standard automated cleanup.",
+   "sourceNotes": "Basic automated cleanup included.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Content Cleanup",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "included",
+    "unitPrice": 0,
+    "status": "confirmed",
+    "sourceUnit": "included",
+    "qtyUnit": "item",
+    "qtyUnitPlural": "items"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_FIELD_NORMALIZE",
+   "keys": [
+    "MIG_FIELD_NORMALIZE"
+   ],
+   "name": "Automated field normalization",
+   "what": "Systematic normalisation of field values for a content type.",
+   "receives": "Consistent field values for each normalised content type.",
+   "sourceNotes": "Systematic normalization.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Content Cleanup",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 150000,
+    "status": "confirmed",
+    "sourceUnit": "content type",
+    "qtyUnit": "content type",
+    "qtyUnitPlural": "content types"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_HTML_CLEANUP",
+   "keys": [
+    "MIG_HTML_CLEANUP"
+   ],
+   "name": "Broken HTML cleanup",
+   "what": "Systematic cleanup of malformed HTML in migrated records.",
+   "receives": "Clean rich text in the affected records.",
+   "sourceNotes": "Systematic malformed HTML cleanup.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Content Cleanup",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_block",
+    "status": "confirmed",
+    "qtyUnit": "record",
+    "qtyUnitPlural": "records",
+    "sourceUnit": "500 records",
+    "blockSize": 500,
+    "price": 250000
+   },
+   "dependsOn": [
+    [
+     "MIG_STRUCTURED_RECORDS"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_URL_NORMALIZE",
+   "keys": [
+    "MIG_URL_NORMALIZE"
+   ],
+   "name": "URL normalization",
+   "what": "Systematic normalisation of URL structure for a site.",
+   "receives": "Consistent URL patterns for the site.",
+   "sourceNotes": "Systematic URL normalization.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Content Cleanup",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 150000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_METADATA_CLEANUP",
+   "keys": [
+    "MIG_METADATA_CLEANUP"
+   ],
+   "name": "Metadata cleanup",
+   "what": "Systematic cleanup of record metadata.",
+   "receives": "Consistent metadata in the affected records.",
+   "sourceNotes": "Systematic metadata cleanup.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Content Cleanup",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_block",
+    "status": "confirmed",
+    "qtyUnit": "record",
+    "qtyUnitPlural": "records",
+    "sourceUnit": "500 records",
+    "blockSize": 500,
+    "price": 150000
+   },
+   "dependsOn": [
+    [
+     "MIG_STRUCTURED_RECORDS"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_ENABLE_TRANSLATION",
+   "keys": [
+    "MIG_ENABLE_TRANSLATION"
+   ],
+   "name": "Enable existing translation integration",
+   "what": "Activate the supported translation workflow on a site.",
+   "receives": "Translation workflow enabled for the site.",
+   "sourceNotes": "Activate supported translation workflow.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Translation Integration",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [
+    [
+     "BASE_TRANSLATION_INTEGRATION"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_LANGUAGE",
+   "keys": [
+    "MIG_LANGUAGE"
+   ],
+   "name": "Additional language configuration",
+   "what": "Configure one additional language.",
+   "receives": "One more language available to editors and visitors.",
+   "sourceNotes": "Per language.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Translation Integration",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 100000,
+    "status": "confirmed",
+    "sourceUnit": "language",
+    "qtyUnit": "language",
+    "qtyUnitPlural": "languages"
+   },
+   "dependsOn": [
+    [
+     "MIG_ENABLE_TRANSLATION",
+     "MIG_LOCALIZATION"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_LOCALIZATION",
+   "keys": [
+    "MIG_LOCALIZATION"
+   ],
+   "name": "Enable localization architecture",
+   "what": "Activate the existing locale architecture on a site.",
+   "receives": "Locale routing and editor support enabled for the site.",
+   "sourceNotes": "Activate existing locale architecture.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Localization",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [
+    [
+     "BASE_LOCALIZATION_ARCH"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_LOCALE_NAV",
+   "keys": [
+    "MIG_LOCALE_NAV"
+   ],
+   "name": "Locale specific navigation",
+   "what": "Navigation specific to one locale.",
+   "receives": "A dedicated navigation for each locale.",
+   "sourceNotes": "Per locale.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Localization",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 75000,
+    "status": "confirmed",
+    "sourceUnit": "locale",
+    "qtyUnit": "locale",
+    "qtyUnitPlural": "locales"
+   },
+   "dependsOn": [
+    [
+     "MIG_LOCALIZATION"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_LOCALE_RULES",
+   "keys": [
+    "MIG_LOCALE_RULES"
+   ],
+   "name": "Locale specific content rules",
+   "what": "Rules for which content appears in which locale.",
+   "receives": "Locale content rules configured for the site.",
+   "sourceNotes": "Configure locale rules.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Localization",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 150000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [
+    [
+     "MIG_LOCALIZATION"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_REGION_VARIATION",
+   "keys": [
+    "MIG_REGION_VARIATION"
+   ],
+   "name": "Region specific site variation",
+   "what": "A regional variation of a site.",
+   "receives": "One configured regional variation.",
+   "sourceNotes": "Regional variation.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "Localization",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "variation",
+    "qtyUnit": "variation",
+    "qtyUnitPlural": "variations"
+   },
+   "dependsOn": [
+    [
+     "MIG_LOCALIZATION"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_BRAND_CONFIG",
+   "keys": [
+    "MIG_BRAND_CONFIG"
+   ],
+   "name": "Brand configuration",
+   "what": "Apply the site's logo, colours and fonts using existing global controls.",
+   "receives": "The site styled with its brand using existing controls.",
+   "sourceNotes": "Logo, colors, fonts and existing global controls.",
+   "phase": "Migration",
+   "category": "Design + Experience",
+   "subcategory": "Brand Variations",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_CRM_SETUP",
+   "keys": [
+    "MIG_CRM_SETUP"
+   ],
+   "name": "Existing CRM integration setup",
+   "what": "Configure a CRM the platform already supports.",
+   "receives": "The site connected to its CRM.",
+   "sourceNotes": "Configure a supported CRM.",
+   "phase": "Migration",
+   "category": "Integrations",
+   "subcategory": "CRM + Marketing Platforms",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 150000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_STANDARD_FORM",
+   "keys": [
+    "MIG_STANDARD_FORM"
+   ],
+   "name": "Standard form connection",
+   "what": "Connect one standard form.",
+   "receives": "One working form connected to its destination.",
+   "sourceNotes": "Standard form connection.",
+   "phase": "Migration",
+   "category": "Integrations",
+   "subcategory": "CRM + Marketing Platforms",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 75000,
+    "status": "confirmed",
+    "sourceUnit": "form",
+    "qtyUnit": "form",
+    "qtyUnitPlural": "forms"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_ADV_FORM",
+   "keys": [
+    "MIG_ADV_FORM"
+   ],
+   "name": "Advanced form workflow",
+   "what": "Configure one advanced supported form workflow.",
+   "receives": "One advanced form workflow.",
+   "sourceNotes": "Advanced supported form workflow.",
+   "phase": "Migration",
+   "category": "Integrations",
+   "subcategory": "CRM + Marketing Platforms",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 150000,
+    "status": "confirmed",
+    "sourceUnit": "form",
+    "qtyUnit": "form",
+    "qtyUnitPlural": "forms"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_NEWSLETTER",
+   "keys": [
+    "MIG_NEWSLETTER"
+   ],
+   "name": "Newsletter integration",
+   "what": "Connect the supported newsletter integration.",
+   "receives": "Newsletter sign up connected for the site.",
+   "sourceNotes": "Supported newsletter integration.",
+   "phase": "Migration",
+   "category": "Integrations",
+   "subcategory": "CRM + Marketing Platforms",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 100000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_API_SETUP",
+   "keys": [
+    "MIG_API_SETUP"
+   ],
+   "name": "Existing API integration setup",
+   "what": "Configure an integration that already exists in the base.",
+   "receives": "The existing integration configured for the site.",
+   "sourceNotes": "Configure an integration already in base.",
+   "phase": "Migration",
+   "category": "Integrations",
+   "subcategory": "APIs + 3rd Party Systems",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [
+    [
+     "BASE_SHARED_INTEGRATION_EXISTING",
+     "BASE_SHARED_INTEGRATION_NEW",
+     "BASE_NEW_SIMPLE_API",
+     "BASE_NEW_ADV_API"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_DATA_SOURCE_SETUP",
+   "keys": [
+    "MIG_DATA_SOURCE_SETUP"
+   ],
+   "name": "Existing data source setup",
+   "what": "Configure a supported data source for a site.",
+   "receives": "The data source connected for the site.",
+   "sourceNotes": "Configure a supported data source.",
+   "phase": "Migration",
+   "category": "Integrations",
+   "subcategory": "Complex Data Integrations",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "source",
+    "qtyUnit": "source",
+    "qtyUnitPlural": "sources"
+   },
+   "dependsOn": [
+    [
+     "BASE_DATA_SOURCE",
+     "BASE_COMPLEX_SYNC_SOURCE"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_SEARCH_SETUP",
+   "keys": [
+    "MIG_SEARCH_SETUP"
+   ],
+   "name": "Existing search configuration",
+   "what": "Configure the shared search for a site.",
+   "receives": "Search configured and working for the site.",
+   "sourceNotes": "Configure shared search.",
+   "phase": "Migration",
+   "category": "Integrations",
+   "subcategory": "Search Integrations",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [
+    [
+     "BASE_SITE_SEARCH",
+     "BASE_FACETED_SEARCH",
+     "BASE_EXTERNAL_SEARCH"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_MEMBER_DIRECTORY",
+   "keys": [
+    "MIG_MEMBER_DIRECTORY"
+   ],
+   "name": "Member directory configuration",
+   "what": "Configure the existing member directory pattern for a site.",
+   "receives": "A working member directory for the site.",
+   "sourceNotes": "Configure an existing directory pattern.",
+   "phase": "Migration",
+   "category": "Extended Capabilities",
+   "subcategory": "Member Portals",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_ANALYTICS",
+   "keys": [
+    "MIG_ANALYTICS"
+   ],
+   "name": "Analytics configuration and validation",
+   "what": "Configure and validate analytics.",
+   "receives": "Analytics configured and validated for the site.",
+   "sourceNotes": "Configure and validate analytics.",
+   "phase": "Migration",
+   "category": "Integrations",
+   "subcategory": "Analytics",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 75000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_SEO_METADATA",
+   "keys": [
+    "MIG_SEO_METADATA"
+   ],
+   "name": "SEO metadata migration",
+   "what": "Migrate SEO metadata into the new content model.",
+   "receives": "Titles, descriptions and social metadata carried over.",
+   "sourceNotes": "Migrate metadata into target model.",
+   "phase": "Migration",
+   "category": "Content + Migration",
+   "subcategory": "SEO",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 150000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_ECOMMERCE_SETUP",
+   "keys": [
+    "MIG_ECOMMERCE_SETUP"
+   ],
+   "name": "Existing commerce setup",
+   "what": "Configure the supported commerce capability for a site.",
+   "receives": "Commerce configured for the site.",
+   "sourceNotes": "Configure supported commerce capability.",
+   "phase": "Migration",
+   "category": "Extended Capabilities",
+   "subcategory": "eCommerce",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 500000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [
+    [
+     "BASE_ECOMMERCE_SIMPLE",
+     "BASE_ECOMMERCE_PLATFORM",
+     "BASE_FULL_COMMERCE"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "MIG_GATED_CONTENT_SETUP",
+   "keys": [
+    "MIG_GATED_CONTENT_SETUP"
+   ],
+   "name": "Existing gated content setup",
+   "what": "Configure the supported gated content pattern for a site.",
+   "receives": "Gated content configured for the site.",
+   "sourceNotes": "Configure supported gated content.",
+   "phase": "Migration",
+   "category": "Extended Capabilities",
+   "subcategory": "Gated Content",
+   "section": "extensions",
+   "subsection": "implementation",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": 250000,
+    "status": "confirmed",
+    "sourceUnit": "site",
+    "qtyUnit": "site",
+    "qtyUnitPlural": "sites"
+   },
+   "dependsOn": [
+    [
+     "BASE_GATED_RESOURCE",
+     "BASE_REG_GATE",
+     "BASE_CRM_GATE",
+     "BASE_ROLE_GATE"
+    ]
+   ],
+   "optionalAvailable": true,
+   "isDesign": false
+  },
+  {
+   "id": "DESIGN_DIRECTION",
+   "keys": [
+    "DESIGN_DIRECTION"
+   ],
+   "name": "Visual direction and brand application",
+   "what": "Establish the visual direction for the site and apply the brand to the existing AAIF design system.",
+   "receives": "An approved visual direction: type, colour, imagery and component styling applied across the block library.",
+   "sourceNotes": "Design rates not established in source workbooks.",
+   "phase": "Base",
+   "category": "Design + Experience",
+   "subcategory": "Design",
+   "section": "base",
+   "subsection": "design",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": null,
+    "status": "unpriced",
+    "qtyUnit": "direction",
+    "qtyUnitPlural": "directions",
+    "sourceUnit": "each"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": true,
+   "quantitySource": null
+  },
+  {
+   "id": "DESIGN_EXISTING_BLOCKS",
+   "keys": [
+    "DESIGN_EXISTING_BLOCKS"
+   ],
+   "name": "Existing AAIF block redesign",
+   "what": "Visually redesign selected existing AAIF blocks. Each block keeps its existing schema and behaviour. New fields, filters, workflows or functionality are separate development scope.",
+   "receives": "Approved designs for each selected block, counted once per site however often it appears.",
+   "sourceNotes": "Design rates not established in source workbooks.",
+   "phase": "Base",
+   "category": "Design + Experience",
+   "subcategory": "Design",
+   "section": "base",
+   "subsection": "design",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": null,
+    "status": "unpriced",
+    "qtyUnit": "block",
+    "qtyUnitPlural": "blocks",
+    "sourceUnit": "each"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": true,
+   "quantitySource": "aaif_redesign_count"
+  },
+  {
+   "id": "DESIGN_PAGE_LAYOUTS",
+   "keys": [
+    "DESIGN_PAGE_LAYOUTS"
+   ],
+   "name": "Representative page layout designs",
+   "what": "Full page designs for representative templates that show how redesigned blocks compose.",
+   "receives": "Approved designs for each representative page layout.",
+   "sourceNotes": "Design rates not established in source workbooks.",
+   "phase": "Base",
+   "category": "Design + Experience",
+   "subcategory": "Design",
+   "section": "base",
+   "subsection": "design",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": null,
+    "status": "unpriced",
+    "qtyUnit": "layout",
+    "qtyUnitPlural": "layouts",
+    "sourceUnit": "each"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": true,
+   "quantitySource": null
+  },
+  {
+   "id": "DESIGN_REVIEWS",
+   "keys": [
+    "DESIGN_REVIEWS"
+   ],
+   "name": "Design review rounds",
+   "what": "Structured review and revision rounds on the design work.",
+   "receives": "Consolidated feedback rounds with revised designs.",
+   "sourceNotes": "Design rates not established in source workbooks.",
+   "phase": "Base",
+   "category": "Design + Experience",
+   "subcategory": "Design",
+   "section": "base",
+   "subsection": "design",
+   "pricing": {
+    "model": "per_unit",
+    "unitPrice": null,
+    "status": "unpriced",
+    "qtyUnit": "round",
+    "qtyUnitPlural": "rounds",
+    "sourceUnit": "each"
+   },
+   "dependsOn": [],
+   "optionalAvailable": true,
+   "isDesign": true,
+   "quantitySource": null
+  }
+ ],
+ "sourceRows": [
+  {
+   "key": "BASE_CORE_PLATFORM",
+   "phase": "Base",
+   "name": "Core multisite platform",
+   "price": 7500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_STD_PAGE_TEMPLATE",
+   "phase": "Base",
+   "name": "Standard reusable page template",
+   "price": 250000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_ADV_PAGE_TEMPLATE",
+   "phase": "Base",
+   "name": "Advanced reusable page template",
+   "price": 500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_STD_COMPONENT",
+   "phase": "Base",
+   "name": "Standard reusable component",
+   "price": 250000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_ADV_COMPONENT",
+   "phase": "Base",
+   "name": "Advanced reusable component",
+   "price": 500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_STRUCT_CONTENT_MODEL",
+   "phase": "Base",
+   "name": "Structured content model",
+   "price": 250000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_STD_BRAND_CONTROLS",
+   "phase": "Base",
+   "name": "Standard brand controls",
+   "price": 1000000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_ADV_BRAND_CONTROLS",
+   "phase": "Base",
+   "name": "Advanced brand controls",
+   "price": 2000000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_GLOBAL_DESIGN_CONTROL",
+   "phase": "Base",
+   "name": "Additional global design control",
+   "price": 150000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_SHARED_INTEGRATION_EXISTING",
+   "phase": "Base",
+   "name": "Existing shared integration",
+   "price": 250000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_SHARED_INTEGRATION_NEW",
+   "phase": "Base",
+   "name": "New shared integration",
+   "price": 500000,
+   "unit": "starting"
+  },
+  {
+   "key": "BASE_NEW_SIMPLE_API",
+   "phase": "Base",
+   "name": "New simple API integration",
+   "price": 500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_NEW_ADV_API",
+   "phase": "Base",
+   "name": "New advanced API integration",
+   "price": 1000000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_ENDPOINT",
+   "phase": "Base",
+   "name": "Additional API endpoint",
+   "price": 150000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_WEBHOOK",
+   "phase": "Base",
+   "name": "Webhook workflow",
+   "price": 150000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_DATA_SOURCE",
+   "phase": "Base",
+   "name": "New structured data source",
+   "price": 500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_COMPLEX_SYNC_SOURCE",
+   "phase": "Base",
+   "name": "Complex synchronized data source",
+   "price": 1000000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_DATA_MAPPING",
+   "phase": "Base",
+   "name": "Additional data mapping",
+   "price": 150000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_SCHEDULED_SYNC",
+   "phase": "Base",
+   "name": "Scheduled synchronization",
+   "price": 250000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_SITE_SEARCH",
+   "phase": "Base",
+   "name": "Standard site search",
+   "price": 250000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_FACETED_SEARCH",
+   "phase": "Base",
+   "name": "Faceted search",
+   "price": 500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_EXTERNAL_SEARCH",
+   "phase": "Base",
+   "name": "External search platform integration",
+   "price": 500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_SEARCH_INDEX",
+   "phase": "Base",
+   "name": "Additional search index",
+   "price": 150000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_MULTI_CONTENT_SEARCH",
+   "phase": "Base",
+   "name": "Search across multiple content types",
+   "price": 250000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_TRANSLATION_INTEGRATION",
+   "phase": "Base",
+   "name": "Translation API connection",
+   "price": 250000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_LOCALIZATION_ARCH",
+   "phase": "Base",
+   "name": "Localization architecture",
+   "price": 350000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_ECOMMERCE_SIMPLE",
+   "phase": "Base",
+   "name": "Simple donation or payment flow",
+   "price": 350000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_ECOMMERCE_PLATFORM",
+   "phase": "Base",
+   "name": "Commerce platform integration",
+   "price": 500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_PRODUCT_CATALOG",
+   "phase": "Base",
+   "name": "Product catalogue",
+   "price": 750000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_FULL_COMMERCE",
+   "phase": "Base",
+   "name": "Full commerce implementation",
+   "price": 1500000,
+   "unit": "starting"
+  },
+  {
+   "key": "BASE_AUTH_AREA",
+   "phase": "Base",
+   "name": "Basic authenticated area",
+   "price": 750000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_USER_PROFILES",
+   "phase": "Base",
+   "name": "User profiles",
+   "price": 500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_DASHBOARD",
+   "phase": "Base",
+   "name": "Dashboard",
+   "price": 500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_ROLE_PERMISSIONS",
+   "phase": "Base",
+   "name": "Role based permissions",
+   "price": 350000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_IDP",
+   "phase": "Base",
+   "name": "External identity provider",
+   "price": 500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_COMPLEX_PORTAL",
+   "phase": "Base",
+   "name": "Complex portal",
+   "price": 2000000,
+   "unit": "starting"
+  },
+  {
+   "key": "BASE_GATED_RESOURCE",
+   "phase": "Base",
+   "name": "Simple gated resource",
+   "price": 250000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_REG_GATE",
+   "phase": "Base",
+   "name": "Registration gate",
+   "price": 350000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_CRM_GATE",
+   "phase": "Base",
+   "name": "CRM connected gate",
+   "price": 500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_ROLE_GATE",
+   "phase": "Base",
+   "name": "Role based gated content",
+   "price": 500000,
+   "unit": "each"
+  },
+  {
+   "key": "BASE_SIMPLE_TOOL",
+   "phase": "Base",
+   "name": "Simple interactive tool",
+   "price": 750000,
+   "unit": "starting"
+  },
+  {
+   "key": "BASE_DATA_APP",
+   "phase": "Base",
+   "name": "Data driven application",
+   "price": 1500000,
+   "unit": "starting"
+  },
+  {
+   "key": "MIG_SITE_ACTIVATION_1_10",
+   "phase": "Migration",
+   "name": "Site activation, sites 1 to 10",
+   "price": 250000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_SITE_ACTIVATION_11_50",
+   "phase": "Migration",
+   "name": "Site activation, sites 11 to 50",
+   "price": 175000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_SITE_ACTIVATION_51_100",
+   "phase": "Migration",
+   "name": "Site activation, sites 51 to 100",
+   "price": 125000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_SITE_ACTIVATION_101_PLUS",
+   "phase": "Migration",
+   "name": "Site activation, sites 101 plus",
+   "price": 75000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_L1_PAGE",
+   "phase": "Migration",
+   "name": "Level 1 composed page migration",
+   "price": 100000,
+   "unit": "page"
+  },
+  {
+   "key": "MIG_L2_PAGE",
+   "phase": "Migration",
+   "name": "Level 2 composed page migration",
+   "price": 50000,
+   "unit": "page"
+  },
+  {
+   "key": "MIG_L3_PAGE",
+   "phase": "Migration",
+   "name": "Level 3 simple page migration",
+   "price": 25000,
+   "unit": "page"
+  },
+  {
+   "key": "MIG_DYNAMIC_FIRST_500",
+   "phase": "Migration",
+   "name": "First 500 structured records",
+   "price": 500000,
+   "unit": "block"
+  },
+  {
+   "key": "MIG_DYNAMIC_ADD_500",
+   "phase": "Migration",
+   "name": "Each additional 500 structured records",
+   "price": 350000,
+   "unit": "block"
+  },
+  {
+   "key": "MIG_CONTENT_TYPE_MAP",
+   "phase": "Migration",
+   "name": "Source content type mapping",
+   "price": 150000,
+   "unit": "type"
+  },
+  {
+   "key": "MIG_MEDIA_FIRST_1000",
+   "phase": "Migration",
+   "name": "First 1,000 media assets",
+   "price": 250000,
+   "unit": "block"
+  },
+  {
+   "key": "MIG_MEDIA_ADD_1000",
+   "phase": "Migration",
+   "name": "Each additional 1,000 media assets",
+   "price": 150000,
+   "unit": "block"
+  },
+  {
+   "key": "MIG_STATIC_FIRST_50",
+   "phase": "Migration",
+   "name": "Up to 50 bulk static pages",
+   "price": 350000,
+   "unit": "block"
+  },
+  {
+   "key": "MIG_STATIC_ADD_50",
+   "phase": "Migration",
+   "name": "Each additional 50 bulk static pages",
+   "price": 250000,
+   "unit": "block"
+  },
+  {
+   "key": "MIG_BASIC_CLEANUP",
+   "phase": "Migration",
+   "name": "Basic migration cleanup",
+   "price": 0,
+   "unit": "included"
+  },
+  {
+   "key": "MIG_FIELD_NORMALIZE",
+   "phase": "Migration",
+   "name": "Automated field normalization",
+   "price": 150000,
+   "unit": "content type"
+  },
+  {
+   "key": "MIG_HTML_CLEANUP",
+   "phase": "Migration",
+   "name": "Broken HTML cleanup",
+   "price": 250000,
+   "unit": "500 records"
+  },
+  {
+   "key": "MIG_URL_NORMALIZE",
+   "phase": "Migration",
+   "name": "URL normalization",
+   "price": 150000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_METADATA_CLEANUP",
+   "phase": "Migration",
+   "name": "Metadata cleanup",
+   "price": 150000,
+   "unit": "500 records"
+  },
+  {
+   "key": "MIG_ENABLE_TRANSLATION",
+   "phase": "Migration",
+   "name": "Enable existing translation integration",
+   "price": 250000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_LANGUAGE",
+   "phase": "Migration",
+   "name": "Additional language configuration",
+   "price": 100000,
+   "unit": "language"
+  },
+  {
+   "key": "MIG_LOCALIZATION",
+   "phase": "Migration",
+   "name": "Enable localization architecture",
+   "price": 250000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_LOCALE_NAV",
+   "phase": "Migration",
+   "name": "Locale specific navigation",
+   "price": 75000,
+   "unit": "locale"
+  },
+  {
+   "key": "MIG_LOCALE_RULES",
+   "phase": "Migration",
+   "name": "Locale specific content rules",
+   "price": 150000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_REGION_VARIATION",
+   "phase": "Migration",
+   "name": "Region specific site variation",
+   "price": 250000,
+   "unit": "variation"
+  },
+  {
+   "key": "MIG_BRAND_CONFIG",
+   "phase": "Migration",
+   "name": "Brand configuration",
+   "price": 250000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_CRM_SETUP",
+   "phase": "Migration",
+   "name": "Existing CRM integration setup",
+   "price": 150000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_STANDARD_FORM",
+   "phase": "Migration",
+   "name": "Standard form connection",
+   "price": 75000,
+   "unit": "form"
+  },
+  {
+   "key": "MIG_ADV_FORM",
+   "phase": "Migration",
+   "name": "Advanced form workflow",
+   "price": 150000,
+   "unit": "form"
+  },
+  {
+   "key": "MIG_NEWSLETTER",
+   "phase": "Migration",
+   "name": "Newsletter integration",
+   "price": 100000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_API_SETUP",
+   "phase": "Migration",
+   "name": "Existing API integration setup",
+   "price": 250000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_DATA_SOURCE_SETUP",
+   "phase": "Migration",
+   "name": "Existing data source setup",
+   "price": 250000,
+   "unit": "source"
+  },
+  {
+   "key": "MIG_SEARCH_SETUP",
+   "phase": "Migration",
+   "name": "Existing search configuration",
+   "price": 250000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_MEMBER_DIRECTORY",
+   "phase": "Migration",
+   "name": "Member directory configuration",
+   "price": 250000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_REDIRECT_250",
+   "phase": "Migration",
+   "name": "Redirect mapping up to 250 URLs",
+   "price": 150000,
+   "unit": "block"
+  },
+  {
+   "key": "MIG_REDIRECT_ADD_250",
+   "phase": "Migration",
+   "name": "Each additional 250 redirects",
+   "price": 75000,
+   "unit": "block"
+  },
+  {
+   "key": "MIG_ANALYTICS",
+   "phase": "Migration",
+   "name": "Analytics configuration and validation",
+   "price": 75000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_SEO_METADATA",
+   "phase": "Migration",
+   "name": "SEO metadata migration",
+   "price": 150000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_ECOMMERCE_SETUP",
+   "phase": "Migration",
+   "name": "Existing commerce setup",
+   "price": 500000,
+   "unit": "site"
+  },
+  {
+   "key": "MIG_GATED_CONTENT_SETUP",
+   "phase": "Migration",
+   "name": "Existing gated content setup",
+   "price": 250000,
+   "unit": "site"
+  }
+ ]
+}

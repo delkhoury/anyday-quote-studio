@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { html, Badge, Field, NumInput, TextInput, toast } from '../ui.js';
-import { summarize } from '../../shared/inventory.js';
+import { summarize, siteKeyOf } from '../../shared/inventory.js';
+import { quoteTypeOf } from '../../shared/quote.js';
 import { parseCmsExport } from '../../shared/media.js';
 import { fmtInt, fmtDate } from '../../shared/format.js';
 import { readFileText } from '../api.js';
@@ -11,17 +12,27 @@ export function AnalyseStep({ api, quote, update, replace, health, flush, go }) 
   const [err, setErr] = useState(null);
   const [acceptPartial, setAcceptPartial] = useState(false);
   const poll = useRef(null);
+  const j0 = useRef(null); // the sample the running scan belongs to
   const canScan = health?.scanner;
   const inv = quote.inventory || {};
   const s = summarize(inv);
+  const multi = quoteTypeOf(quote).sitesStep || (quote.siteGroups || []).length > 1;
+  const groups = quote.siteGroups?.length ? quote.siteGroups : [{ id: 'main', name: 'Website', samples: [] }];
+  const scanned = new Set((inv.scans || []).map(sc => sc.site));
+  const targets = [];
+  for (const g of groups) for (const smp of g.samples || []) if (smp.url) targets.push({ groupId: g.id, url: smp.url, label: `${g.name}: ${smp.name ? smp.name + ' · ' : ''}${smp.url.replace(/^https?:\/\//, '')}`, done: scanned.has(siteKeyOf(smp.url)) });
+  if (quote.project?.url && !targets.some(t => t.url === quote.project.url)) targets.unshift({ groupId: groups[0].id, url: quote.project.url, label: `${groups[0].name}: ${quote.project.url.replace(/^https?:\/\//, '')}`, done: scanned.has(siteKeyOf(quote.project.url)) });
+  const [targetIdx, setTargetIdx] = useState(() => Math.max(0, targets.findIndex(t => !t.done)));
+  const target = targets[targetIdx] || targets[0] || null;
 
   useEffect(() => () => clearTimeout(poll.current), []);
   async function start(extra = {}) {
     setErr(null); setAcceptPartial(false);
-    if (!quote.project?.url) { setErr('Enter the website URL in step 1 first.'); return; }
+    if (!target) { setErr(multi ? 'Add a sample site to a site type in the Sites step first.' : 'Enter the website URL in Setup first.'); return; }
     try {
       await flush();
-      const j = await api.startScan({ quoteId: quote.id, url: quote.project.url, includeHosts: opts.includeHosts.split(/[\s,]+/).filter(Boolean), crawlIfNoSitemap: opts.crawlIfNoSitemap, limits: { maxPagesInspect: opts.maxPagesInspect }, ...extra });
+      j0.current = target;
+      const j = await api.startScan({ quoteId: quote.id, url: target.url, includeHosts: opts.includeHosts.split(/[\s,]+/).filter(Boolean), crawlIfNoSitemap: opts.crawlIfNoSitemap, limits: { maxPagesInspect: opts.maxPagesInspect }, ...extra });
       setJob(j); tick(j.id);
     } catch (e) { setErr(e.message); }
   }
@@ -35,8 +46,10 @@ export function AnalyseStep({ api, quote, update, replace, health, flush, go }) 
   async function merge() {
     try {
       await flush();
-      const q = await api.mergeScan(quote.id, job.result.id, acceptPartial);
-      replace(q); toast('Scan merged. Your earlier decisions were kept.'); go(`#/quote/${quote.id}/review`);
+      const t = j0.current || target;
+      const q = await api.mergeScan(quote.id, job.result.id, acceptPartial, undefined, t?.groupId);
+      replace(q); toast(multi ? `Merged into ${groups.find(g => g.id === t?.groupId)?.name || 'the site type'}. Other sampled sites were not touched.` : 'Scan merged. Your earlier decisions were kept.');
+      if (!multi) go(`#/quote/${quote.id}/review`); else setJob(null);
     } catch (e) { setErr(e.message); }
   }
   const r = job?.result; const cov = r?.coverage;
@@ -44,11 +57,13 @@ export function AnalyseStep({ api, quote, update, replace, health, flush, go }) 
 
   return html`<div class="stack">
     <div class="card">
-      <div class="spread"><h2>Analyse website</h2>${!canScan ? html`<${Badge} kind="warn">Server required<//>` : null}</div>
+      <div class="spread"><h2>${multi ? 'Analyse sample sites' : 'Analyse website'}</h2>${!canScan ? html`<${Badge} kind="warn">Server required<//>` : null}</div>
       ${!canScan ? html`<div class="banner warn" style="margin-top:10px">This is the in-browser prototype. It cannot fetch external websites, so live analysis is unavailable here. Run the Anyday Quote Studio server to scan sites. Nothing on this screen is simulated.</div>` : null}
       <p class="small">Reads robots.txt for declared sitemaps, checks common sitemap locations, follows nested and compressed sitemap indexes, deduplicates URLs, then inspects a bounded set of pages: every standalone page first, then representatives of each repeatable URL group. Respects robots.txt and crawl delay, refuses private network destinations including unsafe redirects, and runs one site at a time.</p>
       <div class="grid3" style="margin-top:10px">
-        <${Field} label="Website"><input class="input" value=${quote.project?.url || ''} disabled /><//>
+        ${multi ? html`<${Field} label="Sample site to analyse" hint=${html`Each scan is merged into its site type. <a href=${`#/quote/${quote.id}/sites`}>Add samples in Sites</a>.`}>
+            ${targets.length ? html`<select class="input" value=${targetIdx} onChange=${e => setTargetIdx(Number(e.target.value))}>${targets.map((t, i) => html`<option value=${i}>${t.done ? '✓ ' : ''}${t.label}</option>`)}</select>` : html`<input class="input" value="No sample sites yet" disabled />`}<//>`
+          : html`<${Field} label="Website"><input class="input" value=${quote.project?.url || ''} disabled /><//>`}
         <${Field} label="Pages to inspect" hint="Upper bound for HTML inspection (1 to 600). Sitemap URLs are all collected regardless."><${NumInput} cls="input" value=${opts.maxPagesInspect} onChange=${v => setOpts({ ...opts, maxPagesInspect: Math.max(1, Math.min(600, v || 150)) })} /><//>
         <${Field} label="Also include hosts" hint="Comma separated. Subdomains and other hosts are kept separate unless listed here."><${TextInput} value=${opts.includeHosts} onChange=${v => setOpts({ ...opts, includeHosts: v })} placeholder="i.e. docs.example.org" /><//>
       </div>
@@ -56,7 +71,7 @@ export function AnalyseStep({ api, quote, update, replace, health, flush, go }) 
         <label class="check"><input type="checkbox" checked=${opts.crawlIfNoSitemap} onChange=${e => setOpts({ ...opts, crawlIfNoSitemap: e.target.checked })} /> If no sitemap exists, run a bounded crawl (up to 300 pages, depth 3)</label>
         <span class="grow"></span>
         ${job && ['queued', 'running'].includes(job.status) ? html`<button class="btn danger" onClick=${async () => setJob(await api.cancelScan(job.id))}>Cancel scan</button>` : null}
-        <button class="btn primary" disabled=${!canScan || (job && ['queued', 'running'].includes(job.status))} onClick=${() => start()}>Analyse website</button>
+        <button class="btn primary" disabled=${!canScan || !target || (job && ['queued', 'running'].includes(job.status))} onClick=${() => start()}>${multi ? 'Analyse this sample' : 'Analyse website'}</button>
       </div>
       ${err ? html`<div class="banner danger" style="margin-top:10px">${err}</div>` : null}
     </div>
@@ -79,11 +94,13 @@ export function AnalyseStep({ api, quote, update, replace, health, flush, go }) 
         <div class="tiny muted" style="margin-top:6px">Merging keeps every classification you have already edited, marks new and changed URLs, and keeps URLs that were not seen this time. Quote quantities are not touched until you use Review and apply quantities.</div>` : null}
     </div>` : null}
 
+    ${multi && targets.length ? html`<div class="card"><h3>Samples</h3><p class="small muted" style="margin-top:0">${targets.filter(t => t.done).length} of ${targets.length} sample sites analysed. Totals for each site type are extrapolated from its analysed samples in Review.</p>
+      <ul class="small" style="padding-left:18px;margin:0">${targets.map(t => html`<li>${t.done ? html`<b>Analysed</b>` : 'Not analysed yet'} · ${t.label}</li>`)}</ul></div>` : null}
     <div class="card"><h3>Current inventory</h3>
       ${inv.source ? html`<p class="small" style="margin:0"><b>${inv.source.label}</b> · ${fmtDate(inv.source.date)}${inv.source.type === 'imported_example' ? ' · dated example, not a fresh scan' : ''}${inv.source.partial ? ' · partial scan' : ''}</p>
         <p class="small muted">${fmtInt(s.discovered)} URLs · ${fmtInt(s.needsReview)} need review · ${fmtInt(s.edited)} edited by you${s.statusCounts.new || s.statusCounts.changed ? ` · ${s.statusCounts.new} new, ${s.statusCounts.changed} changed, ${s.statusCounts.not_seen} not seen in the latest scan` : ''}</p>
         ${inv.source.note ? html`<p class="small muted">${inv.source.note}</p>` : null}`
-      : html`<p class="small muted" style="margin:0">No inventory yet. Analyse the website or enter quantities directly in Select scope.</p>`}
+      : html`<p class="small muted" style="margin:0">No inventory yet. Analyse the website or enter quantities directly in Scope.</p>`}
       ${(inv.scans || []).length ? html`<details class="more" style="margin-top:6px"><summary>Scan history (${inv.scans.length})</summary><ul class="small" style="padding-left:18px">${inv.scans.slice().reverse().map(sc => html`<li>${fmtDate(sc.finishedAt)} · ${sc.coverage?.urlsDiscovered ?? '?'} URLs · ${sc.coverage?.pagesInspected ?? '?'} pages inspected${sc.partial ? ' · partial' : ''}</li>`)}</ul></details>` : null}
     </div>
 

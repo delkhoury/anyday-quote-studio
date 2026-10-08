@@ -56,7 +56,7 @@ Claude pushes the code. Every later change Claude makes is pushed the same way, 
 
 Open **https://quotes.anyday.inc**, click **Sign in with Google**, and choose your anyday.inc account.
 
-Your three LF example quotes, the Pricing Library and the AAIF catalogue are already loaded.
+Your three LF example quotes, the Pricing Library and the AAIF foundation are already loaded.
 
 ---
 

@@ -1,8 +1,9 @@
 // Data access. ServerApi talks to the Node server. MemoryApi runs the same app without a
 // server (Artifact prototype): data lives in memory only, scanning and PDF are unavailable.
-import { newQuote, duplicateQuote, applyLibraryPricing, validateQuoteShape, validateLibraryShape, cryptoId } from '../shared/quote.js';
+import { newQuote, duplicateQuote, applyLibraryPricing, applyFoundation, validateQuoteShape, validateLibraryShape, cryptoId, emptyFoundation, quoteTypes, quoteTypeOf } from '../shared/quote.js';
+import { migrateQuote, migrateLibrary } from '../shared/migrate.js';
 import { calculateQuote } from '../shared/pricing.js';
-import { inventoryCsv } from '../shared/inventory.js';
+import { inventoryCsv, portfolioSummary } from '../shared/inventory.js';
 
 async function j(res) {
   const body = await res.json().catch(() => ({}));
@@ -20,8 +21,12 @@ export class ServerApi {
   library() { return fetch('/api/library').then(j); }
   saveLibrary(library, baseUpdatedAt) { return send('PUT', '/api/library', { library, baseUpdatedAt }); }
   importLibrary(library) { return send('POST', '/api/library/import', { library }); }
-  catalogue() { return fetch('/api/catalogue').then(j); }
-  saveCatalogue(c) { return send('PUT', '/api/catalogue', c); }
+  foundations() { return fetch('/api/foundations').then(j); }
+  foundation(id) { return fetch(`/api/foundations/${encodeURIComponent(id)}`).then(j); }
+  createFoundation(fields) { return send('POST', '/api/foundations', fields); }
+  saveFoundation(foundation, baseUpdatedAt) { return send('PUT', `/api/foundations/${encodeURIComponent(foundation.id)}`, { foundation, baseUpdatedAt }); }
+  duplicateFoundation(id) { return send('POST', `/api/foundations/${encodeURIComponent(id)}/duplicate`, {}); }
+  applyFoundation(id, foundationId, confirm, baseUpdatedAt) { return send('POST', `/api/quotes/${encodeURIComponent(id)}/apply-foundation`, { foundationId, confirm, baseUpdatedAt }); }
   quotes() { return fetch('/api/quotes').then(j); }
   quote(id) { return fetch(`/api/quotes/${encodeURIComponent(id)}`).then(j); }
   createQuote(fields) { return send('POST', '/api/quotes', fields); }
@@ -40,15 +45,15 @@ export class ServerApi {
   startScan(params) { return send('POST', '/api/scans', params); }
   scan(jobId) { return fetch(`/api/scans/${encodeURIComponent(jobId)}`).then(j); }
   cancelScan(jobId) { return send('POST', `/api/scans/${encodeURIComponent(jobId)}/cancel`, {}); }
-  mergeScan(quoteId, scanId, acceptPartial, baseUpdatedAt) { return send('POST', `/api/quotes/${encodeURIComponent(quoteId)}/merge-scan`, { scanId, acceptPartial, baseUpdatedAt }); }
+  mergeScan(quoteId, scanId, acceptPartial, baseUpdatedAt, groupId) { return send('POST', `/api/quotes/${encodeURIComponent(quoteId)}/merge-scan`, { scanId, acceptPartial, baseUpdatedAt, groupId }); }
 }
 
 export class MemoryApi {
   constructor(seed) {
     this.mode = 'prototype';
     this.lib = JSON.parse(JSON.stringify(seed.library));
-    this.cat = JSON.parse(JSON.stringify(seed.catalogue));
-    this.qs = new Map(seed.quotes.map(q => [q.id, q]));
+    this.fs = new Map((seed.foundations || []).map(f => [f.id, JSON.parse(JSON.stringify(f))]));
+    this.qs = new Map(seed.quotes.map(q => [q.id, migrateQuote(q, this.lib)]));
     this.n = seed.quotes.length + 1;
   }
   num() { return `AQ-${new Date().getUTCFullYear()}-${String(this.n++).padStart(4, '0')}`; }
@@ -61,15 +66,39 @@ export class MemoryApi {
     if (baseUpdatedAt && baseUpdatedAt !== this.lib.updatedAt) throw Object.assign(new Error('Library changed'), { status: 409 });
     this.lib = { ...library, updatedAt: new Date().toISOString() }; return this.library();
   }
-  async importLibrary(library) { return this.saveLibrary(library); }
-  async catalogue() { return JSON.parse(JSON.stringify(this.cat)); }
-  async saveCatalogue(c) { this.cat = JSON.parse(JSON.stringify(c)); return this.catalogue(); }
+  async importLibrary(library) { return this.saveLibrary(migrateLibrary(library, this.lib)); }
+  async foundations() { return [...this.fs.values()].map(f => JSON.parse(JSON.stringify(f))).sort((a, b) => (a.archived - b.archived) || a.name.localeCompare(b.name)); }
+  async foundation(id) { const f = this.fs.get(id); if (!f) throw new Error('Foundation not found'); return JSON.parse(JSON.stringify(f)); }
+  async createFoundation(fields) {
+    if (!String(fields.name || '').trim()) throw new Error('Foundation needs a name');
+    const base = fields.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'foundation'; let id = base, n = 2; while (this.fs.has(id)) id = `${base}-${n++}`;
+    const f = emptyFoundation({ ...fields, id }); this.fs.set(id, f); return this.foundation(id);
+  }
+  async saveFoundation(f, base) {
+    const cur = this.fs.get(f.id); if (!cur) throw new Error('Foundation not found');
+    if (base && cur.updatedAt !== base) throw Object.assign(new Error('This foundation changed since you opened it'), { status: 409, current: cur });
+    const ids = f.components.map(c => c.id); if (new Set(ids).size !== ids.length) throw Object.assign(new Error('Foundation is not valid'), { details: ['Duplicate component id'] });
+    this.fs.set(f.id, { ...JSON.parse(JSON.stringify(f)), updatedAt: new Date().toISOString() }); return this.foundation(f.id);
+  }
+  async duplicateFoundation(id) { const src = await this.foundation(id); return this.createFoundation({ ...src, name: `${src.name} (copy)`, archived: false }); }
+  async applyFoundation(id, foundationId, confirm) {
+    const q = await this.quote(id); const f = await this.foundation(foundationId || q.foundation?.id);
+    const next = applyFoundation(q, f);
+    if (!confirm) return { before: calculateQuote(q).total, after: calculateQuote(next).total, components: next.foundation.components.length };
+    return { quote: await this.saveQuote(next) };
+  }
   async quotes() {
-    return [...this.qs.values()].map(q => { let c = null; try { c = calculateQuote(q); } catch { /* */ } return { id: q.id, number: q.number, client: q.client?.name, project: q.project?.name, url: q.project?.url, updatedAt: q.updatedAt, example: q.example?.label || null, libraryVersion: q.pricingSnapshot?.libraryVersion, total: c?.total ?? null, totalStatus: c?.totalStatus, blockers: c?.blockers.length, urls: q.inventory?.entries?.length || 0 }; })
+    return [...this.qs.values()].map(q => { let c = null; try { c = calculateQuote(q); } catch { /* */ } let sites = null; try { sites = portfolioSummary(q).totalSites; } catch { /* */ }
+      return { id: q.id, number: q.number, client: q.client?.name, project: q.project?.name, url: q.project?.url, updatedAt: q.updatedAt, example: q.example?.label || null, libraryVersion: q.pricingSnapshot?.libraryVersion, total: c?.total ?? null, totalStatus: c?.totalStatus, blockers: c?.blockers.length, urls: q.inventory?.entries?.length || 0, type: q.type, typeName: quoteTypeOf(q).name, foundation: q.foundation?.name || null, sites }; })
       .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
   }
   async quote(id) { const q = this.qs.get(id); if (!q) throw new Error('Quote not found'); return JSON.parse(JSON.stringify(q)); }
-  async createQuote(f) { const q = newQuote(this.lib, this.cat, { ...f, number: this.num() }); this.qs.set(q.id, q); return this.quote(q.id); }
+  async createQuote(f) {
+    const type = quoteTypes(this.lib).find(t => t.id === f.type) || quoteTypes(this.lib).find(t => t.id === (f.foundationId ? 'foundation_site' : 'new_platform'));
+    const foundation = f.foundationId ? await this.foundation(f.foundationId) : null;
+    if (type.usesFoundation === 'required' && !foundation) throw new Error(`${type.name} needs a foundation`);
+    const q = newQuote(this.lib, foundation, { ...f, type: type.id, number: this.num() }); this.qs.set(q.id, q); return this.quote(q.id);
+  }
   async saveQuote(q, base) {
     const cur = this.qs.get(q.id);
     if (cur && base && cur.updatedAt !== base) throw Object.assign(new Error('This quote was changed elsewhere'), { status: 409, current: cur });
@@ -80,7 +109,7 @@ export class MemoryApi {
   async duplicateQuote(id) { const c = duplicateQuote(await this.quote(id), this.num()); this.qs.set(c.id, c); return this.quote(c.id); }
   async importQuote(quote) {
     const errs = validateQuoteShape(quote); if (errs.length) throw Object.assign(new Error('Not a valid quote export'), { details: errs });
-    const q = JSON.parse(JSON.stringify(quote)); if (this.qs.has(q.id)) q.id = cryptoId(); if (!q.number) q.number = this.num();
+    const q = migrateQuote(JSON.parse(JSON.stringify(quote)), this.lib); if (this.qs.has(q.id)) q.id = cryptoId(); if (!q.number) q.number = this.num();
     this.qs.set(q.id, q); return this.quote(q.id);
   }
   async applyLibrary(id, confirm) {

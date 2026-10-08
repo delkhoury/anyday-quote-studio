@@ -3,7 +3,8 @@
 // Excludes internal pattern keys, formulas, working notes, empty sections and hidden items.
 
 import { calculateQuote, describePricing, blockTreatmentCounts } from './pricing.js';
-import { summarize, CATEGORIES, effective, CATEGORY_BY_ID } from './inventory.js';
+import { summarize, portfolioSummary, CATEGORIES, effective, CATEGORY_BY_ID } from './inventory.js';
+import { quoteTypeOf } from './quote.js';
 import { fmtMoney, fmtInt, escapeHtml as h, fmtDate, plural } from './format.js';
 
 // Anyday brand (October 2026): pure black, pure white, #A10E15 accent. Headings in MD Lorien,
@@ -100,6 +101,7 @@ tr.grouphead td { font: 600 6pt 'Inter'; letter-spacing: 0.12em; text-transform:
 .total-band .q { font-size: 7.6pt; color: rgba(255,255,255,.75); margin-top: 4pt; }
 
 .snapshot td.cat { width: 46%; }
+.snapshot.portfolio { margin-bottom: 14pt; }
 .snapshot .src { font-size: 7.4pt; color: var(--muted); margin-top: 8pt; }
 
 ul.list { margin: 0; padding-left: 13pt; }
@@ -159,8 +161,8 @@ function lineRow(l, calc, quote, byId) {
   if (l.allocatedFrom) notes.push(`Allocated from the ${h(byId[l.allocatedFrom].item.name.toLowerCase())} fee. No additional charge.`);
   if (l.startingAt) notes.push('Starting price, confirmed after detailed scoping');
   let extra = '';
-  if (l.id === 'DESIGN_EXISTING_BLOCKS') {
-    const names = (quote.aaif?.blocks || []).filter(b => b.treatment === 'redesign').map(b => b.name);
+  if (l.item.quantitySource === 'component_design_count' || l.item.quantitySource === 'aaif_redesign_count') {
+    const names = (quote.foundation?.components || []).filter(b => b.treatment === 'redesign').map(b => b.name);
     if (names.length) extra = `<div class="blocks">${h(names.join(' · '))}</div>`;
   }
   if (l.pricing.model === 'progressive' && l.result?.breakdown?.length) {
@@ -176,46 +178,90 @@ function lineRow(l, calc, quote, byId) {
 
 const HEAD = `<thead><tr><th>Scope</th><th class="num">Quantity</th><th class="num">Rate</th><th class="num">Investment</th></tr></thead>`;
 
+export function isPortfolio(quote) { return !!quoteTypeOf(quote).sitesStep || (quote.siteGroups || []).length > 1; }
+
 function snapshotHtml(quote, calc) {
   const inv = quote.inventory;
+  const portfolio = isPortfolio(quote);
+  const pf = portfolioSummary(quote);
   const s = summarize(inv);
-  const has = s.discovered > 0;
+  const has = portfolio ? pf.groups.some(g => g.source !== 'none') : s.discovered > 0;
   const L = Object.fromEntries(calc.lines.map(l => [l.id, l]));
   const incQty = id => (L[id]?.state === 'included' ? (L[id].qty ?? null) : 0);
   const row = (label, discovered, included, note = '') => `<tr><td class="cat"><div class="name">${h(label)}</div>${note ? `<div class="desc">${h(note)}</div>` : ''}</td><td class="num">${discovered === null ? '<span class="muted">Not measured</span>' : fmtInt(discovered)}</td><td class="num">${included === null ? '<span class="pending">To confirm</span>' : fmtInt(included)}</td></tr>`;
   const rows = [];
-  if (has) rows.push(`<tr><td class="cat"><div class="name">URLs discovered</div><div class="desc">Every unique URL found in the site's sitemaps${inv?.source?.type === 'scan' && inv?.coverage?.crawl ? ' or bounded crawl' : ''}</div></td><td class="num">${fmtInt(s.discovered)}</td><td class="num muted">n/a</td></tr>`);
+  let portfolioTable = '';
+  if (portfolio) {
+    const live = quote.portfolio?.existingLiveSites || 0;
+    const perSitePages = g => (g.perSite.L1 || 0) + (g.perSite.L2 || 0) + (g.perSite.L3 || 0) + (g.perSite.BULK_STATIC || 0);
+    const one = v => (Math.round(v * 10) / 10).toLocaleString('en-US');
+    const basis = g => g.source === 'scan' ? (g.exact ? `All ${fmtInt(g.sampled)} reviewed` : `${fmtInt(g.sampled)} sample${g.sampled === 1 ? '' : 's'} reviewed`) : g.source === 'manual' ? 'Typical site figures' : 'To confirm';
+    portfolioTable = `<table class="snapshot portfolio"><thead><tr><th>Site type</th><th class="num">Sites</th><th>Basis</th><th class="num">Pages per site</th><th class="num">Records per site</th></tr></thead><tbody>
+      ${live ? `<tr><td class="cat"><div class="name">Already live on the platform</div><div class="desc">Volume pricing continues from these sites</div></td><td class="num">${fmtInt(live)}</td><td class="muted">Live</td><td class="num muted">n/a</td><td class="num muted">n/a</td></tr>` : ''}
+      ${pf.groups.map(g => `<tr><td class="cat"><div class="name">${h(g.name)}</div></td><td class="num">${fmtInt(g.count)}</td><td>${h(basis(g))}</td><td class="num">${g.source === 'none' ? '<span class="pending">To confirm</span>' : one(perSitePages(g))}</td><td class="num">${g.source === 'none' ? '<span class="pending">To confirm</span>' : one(g.perSite.RECORD || 0)}</td></tr>`).join('')}
+      <tr><td class="cat"><div class="name">${live ? 'New sites in this proposal' : 'Total sites'}</div></td><td class="num"><b>${fmtInt(pf.totalSites)}</b></td><td></td><td></td><td></td></tr></tbody></table>`;
+  }
+  if (!portfolio && has) rows.push(`<tr><td class="cat"><div class="name">URLs discovered</div><div class="desc">Every unique URL found in the site's sitemaps${inv?.source?.type === 'scan' && inv?.coverage?.crawl ? ' or bounded crawl' : ''}</div></td><td class="num">${fmtInt(s.discovered)}</td><td class="num muted">n/a</td></tr>`);
+  const discOf = c => !has ? null : (portfolio ? (pf.totals[c] ?? 0) : s.byCategoryAll[c]);
   for (const c of CATEGORIES) {
     if (c.id === 'REVIEW') continue;
-    const disc = has ? s.byCategoryAll[c.id] : null;
+    const disc = discOf(c.id);
     const inc = c.itemId ? incQty(c.itemId) : null;
     if (c.id === 'ARCHIVE') { if (has && disc) rows.push(row('Generated archives', disc, 0, 'Tag, category and author routes are regenerated from content, not charged per URL')); continue; }
     if (!disc && !inc) continue;
     rows.push(row(c.label + 's', disc, inc, c.help));
   }
-  const types = Object.entries(s.recordsByType).sort((a, b) => b[1] - a[1]);
+  const byType = portfolio ? pf.recordsByType : s.recordsByType;
+  const types = Object.entries(byType).sort((a, b) => b[1] - a[1]);
   const typeRows = types.slice(0, 8).map(([t, n]) => `<tr><td class="cat" style="padding-left:20pt"><div class="desc">${h(t)}</div></td><td class="num muted">${fmtInt(n)}</td><td class="num muted">${fmtInt(n)}</td></tr>`);
   if (types.length > 8) { const rest = types.slice(8).reduce((a, [, n]) => a + n, 0); typeRows.push(`<tr><td class="cat" style="padding-left:20pt"><div class="desc">${types.length - 8} other content types</div></td><td class="num muted">${fmtInt(rest)}</td><td class="num muted">${fmtInt(rest)}</td></tr>`); }
-  // place the type breakdown after the structured record row
   const recIdx = rows.findIndex(r => r.includes('Structured records'));
   if (recIdx >= 0 && typeRows.length) rows.splice(recIdx + 1, 0, ...typeRows);
   // media
   const m = inv?.media || {};
   const mediaIncl = incQty('MIG_MEDIA');
-  const discMedia = m.discovered ? (m.discovered.images?.unique ?? 0) + (m.discovered.documents?.unique ?? 0) : null;
-  const mediaNote = m.verified ? `Verified from ${m.verified.fileName || 'a CMS media export'}` : (m.discovered ? 'Found on scanned pages only; a public scan does not establish the full media library size' : 'Planning allowance; to be verified against a CMS media export');
+  const discMedia = !portfolio && m.discovered ? (m.discovered.images?.unique ?? 0) + (m.discovered.documents?.unique ?? 0) : null;
+  const mediaNote = m.verified ? `Verified from ${m.verified.fileName || 'a CMS media export'}` : (discMedia ? 'Found on scanned pages only; a public scan does not establish the full media library size' : 'Planning allowance; to be verified against a CMS media export');
   if (mediaIncl || discMedia) rows.push(row('Media assets', m.verified ? (m.verified.total ?? null) : discMedia, mediaIncl, mediaNote));
   const red = incQty('MIG_REDIRECTS');
   if (red) rows.push(row('Redirects', null, red, 'Planning allowance; only URLs whose path changes need a redirect'));
-  const rc = calc.lines.find(l => l.id === 'DESIGN_EXISTING_BLOCKS');
-  const tc = blockTreatmentCounts(quote);
-  const blocksRow = rc && rc.state === 'included' ? `<tr><td class="cat"><div class="name">Existing AAIF blocks redesigned</div><div class="desc">Counted once per site, however often a block appears. Other blocks receive brand application only.</div></td><td class="num">${fmtInt((quote.aaif?.blocks || []).length)} in library</td><td class="num">${fmtInt(tc.redesign)}</td></tr>` : '';
-  const srcText = inv?.source
-    ? (inv.source.type === 'imported_example'
-      ? `Source: dated example inventory from ${fmtDate(inv.source.date)}, not a fresh scan. Page levels and block selections are provisional.`
-      : `Source: website scan on ${fmtDate(inv.source.date)}${inv.source.partial ? ' (partial)' : ''}. Classifications were reviewed by Anyday and remain recommendations until discovery confirms them.`)
-    : 'Source: quantities entered by Anyday. No website inventory attached.';
-  return `<table class="snapshot"><thead><tr><th>Content</th><th class="num">On the current site</th><th class="num">Included in this proposal</th></tr></thead><tbody>${rows.join('')}${blocksRow}</tbody></table><div class="src">${h(srcText)}</div>`;
+  // components
+  const rc = calc.lines.find(l => l.item.quantitySource === 'component_design_count' || l.item.quantitySource === 'aaif_redesign_count');
+  let compRow = '';
+  if (rc && rc.state === 'included') {
+    const f = quote.foundation;
+    const tc = blockTreatmentCounts(quote);
+    if (quote.type === 'new_platform') compRow = `<tr><td class="cat"><div class="name">Components designed</div><div class="desc">Each reusable component is designed once and used across every site${f && tc.redesign ? `, including ${fmtInt(tc.redesign)} redesigned from ${h(f.name)}` : ''}.</div></td><td class="num muted">n/a</td><td class="num">${fmtInt(rc.qty || 0)}</td></tr>`;
+    else if (f) compRow = `<tr><td class="cat"><div class="name">Existing ${h(f.name)} components redesigned</div><div class="desc">Counted once, however often a component appears. Other components receive brand application only.</div></td><td class="num">${fmtInt(f.components.length)} in library</td><td class="num">${fmtInt(tc.redesign)}</td></tr>`;
+  }
+  const sourceLabel = portfolio ? 'Across the portfolio' : 'On the current site';
+  const srcText = portfolio
+    ? (has ? `Source: ${pf.extrapolated ? 'figures for each site type are extrapolated from the sampled sites in that type' : 'every site was reviewed'}${inv?.source?.date ? `, latest scan ${fmtDate(inv.source.date)}` : ''}. Classifications were reviewed by Anyday and are confirmed during discovery.` : 'Source: quantities entered by Anyday. No site inventory attached yet.')
+    : inv?.source
+      ? (inv.source.type === 'imported_example'
+        ? `Source: dated example inventory from ${fmtDate(inv.source.date)}, not a fresh scan. Page levels and component selections are provisional.`
+        : `Source: website scan on ${fmtDate(inv.source.date)}${inv.source.partial ? ' (partial)' : ''}. Classifications were reviewed by Anyday and remain recommendations until discovery confirms them.`)
+      : 'Source: quantities entered by Anyday. No website inventory attached.';
+  return `${portfolioTable}<table class="snapshot"><thead><tr><th>Content</th><th class="num">${sourceLabel}</th><th class="num">Included in this proposal</th></tr></thead><tbody>${rows.join('')}${compRow}</tbody></table><div class="src">${h(srcText)}</div>`;
+}
+
+// A starting point for the introduction, written for the quote type. Anyday edits it.
+export function suggestedIntro(quote, calc = calculateQuote(quote)) {
+  const client = quote.client?.name || 'The client';
+  const f = quote.foundation;
+  const pf = portfolioSummary(quote);
+  const site = quote.project?.url ? quote.project.url.replace(/^https?:\/\//, '').replace(/\/$/, '') : 'its website';
+  const recTypes = Object.keys(pf.recordsByType).slice(0, 3).map(t => t.toLowerCase());
+  const records = recTypes.length ? `${recTypes.join(', ')} and other records` : 'records';
+  const designN = calc.lines.find(l => l.item.quantitySource === 'component_design_count' && l.state === 'included')?.qty;
+  if (quote.type === 'new_platform') {
+    return `${client} needs one platform for ${pf.totalSites > 1 ? `${fmtInt(pf.totalSites)} websites` : 'its website'}. Anyday will build a shared multisite platform${f ? `, starting from ${f.name}` : ''}: a library of reusable components${designN ? ` (${fmtInt(designN)} designed in this proposal)` : ''}, structured content models and brand controls, so every site launches from the same foundation and stays consistent.\n\nAnyday will then roll the sites onto it, migrating their pages, ${records}, media and URLs.${pf.groups.length > 1 ? ` Sites are grouped into ${pf.groups.length} site types, and migration volumes are based on ${pf.groups.some(g => g.source === 'scan') ? 'reviewed samples of each type' : 'typical figures for each type'}.` : ''}`;
+  }
+  if (quote.type === 'expansion') {
+    const live = quote.portfolio?.existingLiveSites || 0;
+    return `${client} is adding ${fmtInt(pf.totalSites)} site${pf.totalSites === 1 ? '' : 's'} to the ${f?.name || 'existing'} platform${live ? `, which already runs ${fmtInt(live)} live site${live === 1 ? '' : 's'}` : ''}. No new platform build is needed: each new site reuses the existing components, content models and integrations.\n\nAnyday will configure each site's brand and migrate its pages, ${records}, media and URLs. Site activation continues from the volume already reached.`;
+  }
+  return `${client} wants to move ${site} onto ${f ? `${f.name}, the platform foundation Anyday built${f.owner ? ` for ${f.owner}` : ''}` : 'an existing Anyday platform foundation'}. This proposal reuses that foundation: its component library, content models and integrations.\n\nAnyday will apply the ${client} brand, redesign the selected components, and migrate the site's pages, ${records}, media and URLs.`;
 }
 
 export function derivedAssumptions(quote, calc) {
@@ -238,7 +284,7 @@ export function renderProposal(quote, opts = {}) {
   const byId = Object.fromEntries(calc.lines.map(l => [l.id, l]));
   const pr = quote.proposal || {};
   const client = quote.client?.name || 'Client';
-  const project = quote.project?.name || 'Website implementation';
+  const project = quote.project?.name || ({ new_platform: 'Platform implementation and rollout', expansion: 'Platform expansion' }[quote.type] || 'Website implementation');
   const date = quoteDate || quote.issuedAt || quote.updatedAt || new Date().toISOString();
   const visibleSections = calc.sections.filter(s => !s.empty);
 
@@ -314,7 +360,7 @@ export function renderProposal(quote, opts = {}) {
 <div class="page-body">
 ${draftNote}
 ${introHtml}
-<div class="block">${head('Website scope snapshot', 'What we found, and what is included', 'The current site compared with the scope priced in this proposal.')}${snapshotHtml(quote, calc)}</div>
+<div class="block">${isPortfolio(quote) ? head('Portfolio scope snapshot', 'What we found, and what is included', 'The sites in scope, and the content across them compared with the scope priced in this proposal.') : head('Website scope snapshot', 'What we found, and what is included', 'The current site compared with the scope priced in this proposal.')}${snapshotHtml(quote, calc)}</div>
 <div class="block newpage">${head('Investment', 'Investment summary', 'Implementation is priced on the volume and complexity of design, migration, integrations and functionality required.')}<table class="summary-table"><thead><tr><th>Section</th><th class="num">Investment</th></tr></thead><tbody>${summaryRows}</tbody></table>${totalBand}</div>
 ${sectionHtml}
 <div class="block">${totalBand}</div>

@@ -1,6 +1,6 @@
 // Bundle the browser app. `node scripts/build-client.mjs` -> public/app.js + public/app.css
 // `node scripts/build-client.mjs --prototype out.html` -> single self contained HTML prototype
-// (in-memory data seeded with the library, AAIF catalogue and LF examples; no server features).
+// (in-memory data seeded with the library, the foundations and the LF examples; no server features).
 import * as esbuild from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,7 +27,7 @@ const logoWhite = dataUri('public/assets/anyday-logo-white.png', 'image/png');
 const mark = dataUri('public/assets/anyday-mark.png', 'image/png');
 const seed = {
   library: JSON.parse(fs.readFileSync(path.join(root, 'shared/library-default.json'), 'utf8')),
-  catalogue: JSON.parse(fs.readFileSync(path.join(root, 'shared/aaif-catalogue.json'), 'utf8')),
+  foundations: fs.readdirSync(path.join(root, 'shared/foundations')).filter(f => f.endsWith('.json')).map(f => JSON.parse(fs.readFileSync(path.join(root, 'shared/foundations', f), 'utf8'))),
   quotes: fs.readdirSync(path.join(root, 'seed/quotes')).map(f => JSON.parse(fs.readFileSync(path.join(root, 'seed/quotes', f), 'utf8'))),
 };
 const fonts = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';

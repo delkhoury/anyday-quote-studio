@@ -12,9 +12,9 @@ import fs from 'node:fs';
 
 process.env.SCANNER_ALLOW_PRIVATE_HOSTS = '127.0.0.1';
 const library = JSON.parse(fs.readFileSync(new URL('../shared/library-default.json', import.meta.url)));
-const catalogue = JSON.parse(fs.readFileSync(new URL('../shared/aaif-catalogue.json', import.meta.url)));
+const foundation = JSON.parse(fs.readFileSync(new URL('../shared/foundations/aaif.json', import.meta.url)));
 const fast = { minDelayMs: 0, requestTimeoutMs: 5000 };
-const ids = catalogue.blocks.map(b => b.id);
+const ids = foundation.components.map(b => b.id);
 
 test('private and reserved addresses are rejected', () => {
   for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.5.4', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1', '::ffff:7f00:1', '224.0.0.1'])
@@ -157,7 +157,7 @@ test('canonical assets and CMS export parsing', () => {
 });
 
 test('apply quantities: proposals do not overwrite manual quantities and redirects stay independent', () => {
-  const q = newQuote(library, catalogue);
+  const q = newQuote(library, foundation);
   q.inventory = { source: { type: 'scan', date: '2026-10-07' }, entries: [
     { url: 'https://x/a', findings: { category: 'L1', include: true } },
     { url: 'https://x/b', findings: { category: 'L2', include: true } },

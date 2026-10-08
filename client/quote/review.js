@@ -1,16 +1,20 @@
 import { useState, useMemo } from 'preact/hooks';
 import { html, Badge, Modal, NumInput, TextInput, toast } from '../ui.js';
-import { summarize, effective, CATEGORIES, CATEGORY_BY_ID, proposeQuantities, applyProposals } from '../../shared/inventory.js';
+import { summarize, effective, groupOf, portfolioSummary, CATEGORIES, CATEGORY_BY_ID, proposeQuantities, applyProposals } from '../../shared/inventory.js';
+import { quoteTypeOf } from '../../shared/quote.js';
 import { fmtInt, fmtMoney } from '../../shared/format.js';
-import { priceForQuantity, effectivePricing } from '../../shared/pricing.js';
+import { priceForQuantity, pricedFrom, effectivePricing } from '../../shared/pricing.js';
 
 const PAGE = 100;
 
 export function ReviewStep({ api, quote, update, flush }) {
   const inv = quote.inventory || { entries: [] };
   const entries = inv.entries || [];
-  const s = useMemo(() => summarize(inv), [inv]);
-  const [f, setF] = useState({ q: '', cat: '', inc: '', status: '', review: '', type: '' });
+  const groups = quote.siteGroups?.length ? quote.siteGroups : [{ id: 'main', name: 'Website' }];
+  const multi = quoteTypeOf(quote).sitesStep || groups.length > 1;
+  const [f, setF] = useState({ q: '', cat: '', inc: '', status: '', review: '', type: '', group: '' });
+  const s = useMemo(() => summarize(inv, f.group ? { groupId: f.group, groups } : {}), [inv, f.group]);
+  const pf = useMemo(() => portfolioSummary(quote), [quote]);
   const [page, setPage] = useState(0);
   const [sel, setSel] = useState(new Set());
   const [open, setOpen] = useState(null);
@@ -29,6 +33,7 @@ export function ReviewStep({ api, quote, update, flush }) {
       if (f.review === 'reviewed' && !ef.reviewed) return false;
       if (f.review === 'edited' && !ef.edited) return false;
       if (f.type && ef.contentType !== f.type) return false;
+      if (f.group && groupOf(e, groups) !== f.group) return false;
       return true;
     });
   }, [entries, f]);
@@ -43,17 +48,23 @@ export function ReviewStep({ api, quote, update, flush }) {
   const setFilter = (k, v) => { setF({ ...f, [k]: v }); setPage(0); };
   const selIdx = [...sel];
 
-  if (!entries.length) return html`<div class="card empty"><h2>No inventory yet</h2><p>Analyse the website first, or enter quantities directly in Select scope.</p></div>`;
+  const applyBtn = html`<button class="btn primary" onClick=${() => setApplying(proposeQuantities(quote))}>Review and apply quantities</button>`;
+  const modal = applying ? html`<${ApplyModal} proposal=${applying} quote=${quote} onClose=${() => setApplying(null)} onApply=${rows => { update(q => applyProposals(q, rows)); setApplying(null); toast(`Applied ${rows.filter(r => r.selected).length} quantities`); }} />` : null;
+  if (!entries.length) return html`<div class="stack">
+    ${multi ? html`<${PortfolioCard} pf=${pf} quote=${quote} action=${pf.groups.some(g => g.source !== 'none') ? applyBtn : null} />` : null}
+    <div class="card empty"><h2>No inventory yet</h2><p>${multi ? 'Analyse sample sites, or enter per site figures for each site type in Sites, or enter quantities directly in Scope.' : 'Analyse the website first, or enter quantities directly in Scope.'}</p></div>${modal}</div>`;
 
   const tile = (k, v, d, onClick, accent) => html`<button class=${'tile' + (accent ? ' accent' : '')} style="text-align:left;cursor:pointer" onClick=${onClick} title=${d}><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></button>`;
   const recTypes = Object.entries(s.recordsByType).sort((a, b) => b[1] - a[1]);
   const m = inv.media || {};
 
   return html`<div class="stack">
+    ${multi ? html`<${PortfolioCard} pf=${pf} quote=${quote} action=${applyBtn} />` : null}
     <div class="card">
-      <div class="spread"><h2>Website analysis</h2>
+      <div class="spread"><h2>${multi ? 'Sample site analysis' : 'Website analysis'}</h2>
         <div class="row"><button class="btn small" onClick=${async () => { await flush(); api.exportCsv(quote); }}>Export URL inventory (CSV)</button>
-        <button class="btn primary" onClick=${() => setApplying(proposeQuantities(quote))}>Review and apply quantities</button></div></div>
+        ${multi ? null : applyBtn}</div></div>
+      ${multi && groups.length > 1 ? html`<div class="row wrap" style="margin-top:6px"><span class="caps muted">Site type</span>${[{ id: '', name: 'All' }, ...groups].map(g => html`<button class=${'chip' + (f.group === g.id ? ' on' : '')} onClick=${() => setFilter('group', g.id)}>${g.name}</button>`)}</div>` : null}
       <p class="small muted">${inv.source?.type === 'imported_example' ? 'Dated example inventory imported from the workbook, not a fresh scan. ' : ''}Automated classifications are recommendations. Your edits are stored separately from the scan findings and survive rescans.</p>
       <div class="tiles" style="margin-top:8px">
         ${tile('Discovered URLs', fmtInt(s.discovered), `${fmtInt(s.included)} included, ${fmtInt(s.excluded)} excluded`, () => setF({ ...f, cat: '', inc: '' }), true)}
@@ -96,7 +107,7 @@ export function ReviewStep({ api, quote, update, flush }) {
       </div>
       <div class="scroll-x"><table class="t">
         <thead><tr><th style="width:28px"><input type="checkbox" aria-label="Select page" checked=${pageRows.length && pageRows.every(r => sel.has(r.i))} onChange=${e => { const n = new Set(sel); pageRows.forEach(r => e.target.checked ? n.add(r.i) : n.delete(r.i)); setSel(n); }} /></th>
-          <th>URL and title</th><th>Content type</th><th>Pricing category</th><th>Included</th><th>Confidence</th><th>Suggested blocks</th><th></th></tr></thead>
+          <th>URL and title</th><th>Content type</th><th>Pricing category</th><th>Included</th><th>Confidence</th><th>Suggested components</th><th></th></tr></thead>
         <tbody>${pageRows.map(({ e, i, ef }) => html`
           <tr class=${sel.has(i) ? 'sel' : ''} key=${e.key || e.url}>
             <td><input type="checkbox" aria-label="Select URL" checked=${sel.has(i)} onChange=${ev => { const n = new Set(sel); ev.target.checked ? n.add(i) : n.delete(i); setSel(n); }} /></td>
@@ -127,8 +138,24 @@ export function ReviewStep({ api, quote, update, flush }) {
       <div class="spread" style="padding:10px 14px"><span class="small muted">Showing ${fmtInt(Math.min(filtered.length, page * PAGE + 1))} to ${fmtInt(Math.min(filtered.length, (page + 1) * PAGE))} of ${fmtInt(filtered.length)}</span>
         <div class="row"><button class="btn small" disabled=${page === 0} onClick=${() => setPage(page - 1)}>Previous</button><button class="btn small" disabled=${(page + 1) * PAGE >= filtered.length} onClick=${() => setPage(page + 1)}>Next</button></div></div>
     </div>
-    ${applying ? html`<${ApplyModal} proposal=${applying} quote=${quote} onClose=${() => setApplying(null)} onApply=${rows => { update(q => applyProposals(q, rows)); setApplying(null); toast(`Applied ${rows.filter(r => r.selected).length} quantities`); }} />` : null}
+    ${modal}
   </div>`;
+}
+
+// Per site type: sites, sampled sites, per site averages and the extrapolated totals that feed the quote.
+export function PortfolioCard({ pf, quote, action }) {
+  const cols = [['L1', 'Level 1'], ['L2', 'Level 2'], ['L3', 'Level 3'], ['BULK_STATIC', 'Bulk static'], ['RECORD', 'Records']];
+  const one = v => (Math.round(v * 10) / 10).toLocaleString();
+  return html`<div class="card">
+    <div class="spread"><h2>Portfolio</h2>${action}</div>
+    <p class="small muted">${fmtInt(pf.totalSites)} site${pf.totalSites === 1 ? '' : 's'} across ${pf.groups.length} site type${pf.groups.length === 1 ? '' : 's'}.${pf.extrapolated ? ' Totals for partly sampled site types are extrapolated: the average per analysed sample, multiplied by the number of sites.' : ''}${(quote.portfolio?.existingLiveSites || 0) > 0 ? ` ${fmtInt(quote.portfolio.existingLiveSites)} sites are already live.` : ''} Edit site types in <a href=${`#/quote/${quote.id}/sites`}>Sites</a>.</p>
+    ${pf.missing.length ? html`<div class="banner warn small">No figures yet for ${pf.missing.join(', ')}. Analyse a sample or enter per site figures in Sites.</div>` : null}
+    <div class="scroll-x"><table class="t" style="margin-top:8px"><thead><tr><th>Site type</th><th class="num">Sites</th><th>Basis</th>${cols.map(([, l]) => html`<th class="num">${l}</th>`)}</tr></thead><tbody>
+      ${pf.groups.map(g => html`<tr><td><b>${g.name}</b></td><td class="num">${fmtInt(g.count)}</td>
+        <td class="small">${g.source === 'scan' ? (g.exact ? `All ${fmtInt(g.sampled)} analysed` : `${fmtInt(g.sampled)} sample${g.sampled === 1 ? '' : 's'} analysed, extrapolated`) : g.source === 'manual' ? 'Per site figures entered' : html`<span style="color:var(--danger)">No figures</span>`}</td>
+        ${cols.map(([c]) => html`<td class="num">${fmtInt(g.totals[c])}${!g.exact && g.source !== 'none' ? html`<div class="tiny muted">${one(g.perSite[c])} per site</div>` : null}</td>`)}</tr>`)}
+      <tr><td><b>Total</b></td><td class="num"><b>${fmtInt(pf.totalSites)}</b></td><td></td>${cols.map(([c]) => html`<td class="num"><b>${fmtInt(pf.totals[c])}</b></td>`)}</tr>
+    </tbody></table></div></div>`;
 }
 
 function BulkType({ onApply }) {
@@ -143,7 +170,10 @@ function ApplyModal({ proposal, quote, onClose, onApply }) {
     const n = { ...r, ...p };
     if ('proposed' in p) { // recompute the investment change for an edited quantity
       const item = quote.pricingSnapshot.items.find(x => x.id === r.id);
-      const pr = priceForQuantity(effectivePricing(item, quote.lines?.[r.id] || {}), n.proposed);
+      const line = quote.lines?.[r.id] || {};
+      const prior = Number(line.priorQty) || 0;
+      const p = effectivePricing(item, line);
+      const pr = prior > 0 ? pricedFrom(p, prior, n.proposed) : priceForQuantity(p, n.proposed);
       n.proposedAmount = pr.status === 'priced' ? pr.amount : null;
       n.change = n.proposedAmount !== null && r.currentAmount !== null ? n.proposedAmount - r.currentAmount : null;
     }
@@ -152,7 +182,7 @@ function ApplyModal({ proposal, quote, onClose, onApply }) {
   const chosen = rows.filter(r => r.selected);
   const delta = chosen.reduce((a, r) => a + (r.change ?? 0), 0);
   return html`<${Modal} title="Review and apply quantities" onClose=${onClose} footer=${html`<span class="small muted grow">Investment change from selected rows: <b>${delta >= 0 ? '+' : ''}${fmtMoney(delta)}</b></span><button class="btn" onClick=${onClose}>Cancel</button><button class="btn primary" disabled=${!chosen.length} onClick=${() => onApply(rows)}>Apply ${chosen.length} quantit${chosen.length === 1 ? 'y' : 'ies'}</button>`}>
-    <p class="small">Proposed quantities come from the included, reviewed inventory. Nothing changes until you apply. Rows you set manually are unticked by default. New content models, components and integrations are never inferred from URL counts; review those in Select scope against the existing AAIF capabilities.</p>
+    <p class="small">Proposed quantities come from the included, reviewed inventory. Nothing changes until you apply. Rows you set manually are unticked by default. New content models, components and integrations are never inferred from URL counts; review those in Scope${quote.foundation ? ` against what ${quote.foundation.name} already provides` : ''}.</p>
     <table class="t"><thead><tr><th></th><th>Item</th><th class="num">Current</th><th class="num">Proposed</th><th class="num">Investment change</th><th>Basis</th></tr></thead>
       <tbody>${rows.map((r, i) => html`<tr>
         <td><input type="checkbox" checked=${r.selected} aria-label=${'Apply ' + r.name} onChange=${e => set(i, { selected: e.target.checked })} /></td>

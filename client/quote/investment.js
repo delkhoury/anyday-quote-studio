@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'preact/hooks';
 import { html, Badge, Field, TextInput, ListEditor, toast } from '../ui.js';
-import { renderProposal, derivedAssumptions, proposalReadiness } from '../../shared/proposal.js';
+import { renderProposal, derivedAssumptions, proposalReadiness, suggestedIntro } from '../../shared/proposal.js';
+import { askConfirm } from '../ui.js';
 import { fmtMoney } from '../../shared/format.js';
 import { download } from '../api.js';
 
@@ -39,7 +40,7 @@ export function InvestmentStep({ api, quote, update, calc, health, flush, go }) 
         <div class="total-box"><div class="caps" style="opacity:.8">${calc.totalStatus === 'starting_at' ? 'Total investment, starting at' : 'Total investment'} · USD</div><div class="v">${fmtMoney(calc.total)}</div>
           ${calc.totalStatus === 'pending' ? html`<div class="small">+ ${calc.blockers.length} item${calc.blockers.length === 1 ? '' : 's'} pending</div>` : null}</div>
         <div class="tiny muted" style="margin-top:8px">${calc.optional.length + calc.additions.length} optional additions are listed separately and are not part of this total.</div>
-        ${calc.blockers.length ? html`<div class="banner danger small" style="margin-top:10px"><b>Final export blocked.</b><ul style="margin:4px 0 0;padding-left:18px">${calc.blockers.map(b => html`<li>${b.message}</li>`)}</ul><a href=${`#/quote/${quote.id}/scope`}>Resolve in Select scope →</a></div>` : null}
+        ${calc.blockers.length ? html`<div class="banner danger small" style="margin-top:10px"><b>Final export blocked.</b><ul style="margin:4px 0 0;padding-left:18px">${calc.blockers.map(b => html`<li>${b.message}</li>`)}</ul><a href=${`#/quote/${quote.id}/scope`}>Resolve in Scope →</a></div>` : null}
         ${calc.warnings.length ? html`<div class="banner warn small" style="margin-top:10px"><ul style="margin:0;padding-left:18px">${calc.warnings.map(w => html`<li>${w.message}</li>`)}</ul></div>` : null}
       </div>
 
@@ -63,6 +64,7 @@ export function InvestmentStep({ api, quote, update, calc, health, flush, go }) 
       <div class="card stack">
         <h2>Proposal content</h2>
         <${Field} label="Project introduction"><${TextInput} multiline rows=${7} value=${pr.intro} onChange=${v => setP({ intro: v })} placeholder="What the client wants and how Anyday will deliver it. Blank lines start new paragraphs." /><//>
+        <div><button class="btn small" onClick=${async () => { if (!pr.intro?.trim() || await askConfirm('Replace the current introduction with a suggested one for this quote type?', 'Replace')) setP({ intro: suggestedIntro(quote, calc) }); }}>Suggest an introduction</button> <span class="tiny muted">Written from the quote type, foundation and portfolio. Edit it freely.</span></div>
         <${Field} label="Assumptions"><${ListEditor} items=${pr.assumptions || []} onChange=${v => setP({ assumptions: v })} placeholder="Add an assumption" /><//>
         ${autos.length ? html`<div><div class="caps muted" style="margin-bottom:4px">Generated from scope decisions</div>${autos.map(a => html`<label class="check small" style="align-items:flex-start;margin-bottom:4px"><input type="checkbox" checked=${!dismissed.has(a)} onChange=${e => setP({ dismissedAuto: e.target.checked ? [...dismissed].filter(x => x !== a) : [...dismissed, a] })} /><span>${a}</span></label>`)}</div>` : null}
         <${Field} label="Exclusions"><${ListEditor} items=${pr.exclusions || []} onChange=${v => setP({ exclusions: v })} placeholder="Add an exclusion" /><//>

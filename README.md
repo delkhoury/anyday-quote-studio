@@ -22,7 +22,7 @@ npx playwright@1.56.0 install chromium   # one time, for PDF export
 npm start                                # http://127.0.0.1:4310
 ```
 
-On first start the server creates `data/` and seeds it with the Pricing Library, the AAIF block catalogue and the three Linux Foundation examples (PyTorch, OpenSSF, CNCF).
+On first start the server creates `data/` and seeds it with the Pricing Library, the AAIF foundation and the three Linux Foundation examples (PyTorch, OpenSSF, CNCF).
 
 ### Run with Docker
 
@@ -58,7 +58,8 @@ To deploy to **quotes.anyday.inc** on Render, follow **DEPLOY.md**. The `render.
 Everything lives as plain JSON under `DATA_DIR`:
 
 * `library.json`: the current Pricing Library. Every save archives the previous version in `library-versions/`.
-* `aaif-catalogue.json`: AAIF blocks, integrations and default foundation capabilities.
+* `foundations/<id>.json`: one file per foundation (components, content models, integrations, capabilities provided, notes). Every save archives the previous version in `foundation-versions/`.
+* `backups/`: copies taken before an automatic data upgrade (i.e. `pre-v2-<time>/`).
 * `quotes/<id>.json`: one file per quote, including its own pricing snapshot.
 * `scans/<id>.json`: raw results of each website scan.
 * `trash/`: deleted quotes (recoverable).
@@ -71,23 +72,32 @@ Writes are atomic (write to a temporary file, flush, rename). Saving a quote tha
 
 ### Create a quote
 
-1. **Quotes → New quote.** Enter the client, project and website URL. The quote takes a pricing snapshot of the current library. Nothing is selected for redesign and no core platform build is included by default.
-2. **Analyse website** (see below), or skip it and enter quantities by hand.
-3. **Review inventory.** Check the dashboard and the URL table. Change a category, include or exclude URLs, set content types, mark rows reviewed. Use search, filters and bulk actions for large sites. Your decisions are stored separately from the scan findings.
-4. Click **Review and apply quantities.** The dialog shows current quantities, proposed quantities, the investment change and the assumptions that will be added. Only ticked rows are applied. Quantities you set by hand are unticked by default. Redirects are entered independently.
-5. **Select scope.** For each item choose **Included**, **Optional** or **Hidden**. Expand any row with **+** to see what it means, what the client receives and how it is priced, and to:
+1. **Quotes → New quote.** First choose what you are pricing:
+   * **New platform and rollout**: a new multisite platform built from scratch, then a portfolio of sites rolled onto it (i.e. 600 clinic sites). Can optionally start from an existing foundation.
+   * **New site on an existing foundation**: a site for a sub brand or sister organisation reusing a platform Anyday already built (i.e. a Linux Foundation project on AAIF). Needs a foundation.
+   * **Expand a platform we already run**: new sites on a live platform. Enter how many sites are already live; site activation pricing continues from that volume tier.
+   The type sets the starting scope (its presets, editable in Pricing Library → Quote type presets), the steps and the proposal wording. The quote takes snapshots of the current library and of the chosen foundation.
+2. **Sites** (portfolio types only). Group sites into site types with a count each. **Import site list (CSV)** with columns such as name, url, brand, site type creates the types and counts and picks samples. For each type, add one or two sample sites to analyse, or enter typical per site figures when nothing can be scanned.
+3. **Analyse** the website, or each sample site (see below), or skip it and enter quantities by hand. Each sample scan only replaces that site's own pages.
+4. **Review.** For portfolios, the Portfolio table shows sites, samples, per site averages and extrapolated totals per site type. Check the dashboard and the URL table. Check the dashboard and the URL table. Change a category, include or exclude URLs, set content types, mark rows reviewed. Use search, filters and bulk actions for large sites. Your decisions are stored separately from the scan findings.
+5. Click **Review and apply quantities.** The dialog shows current quantities, proposed quantities, the investment change and the assumptions that will be added. Only ticked rows are applied. Quantities you set by hand are unticked by default. Redirects and per site brand configuration are entered independently. Portfolios also get a site activation row.
+6. **Scope.** For each item choose **Included**, **Optional** or **Hidden**. Expand any row with **+** to see what it means, what the client receives and how it is priced, and to:
    * set a quote specific price override (the library is unchanged),
    * confirm a "starting at" price,
    * choose whether a design amount is an additional charge or an allocation from an existing fee,
    * offer additional volume as an optional addition, priced against the scope already included.
-   In **WebOps Base + Design**, the AAIF foundation panel sets each block to Brand, Redesign, Extend, New or Not used. The block redesign quantity counts each Redesign block once.
-6. **Investment and proposal.** Edit the introduction, assumptions, exclusions, payment terms, validity and (optionally) timeline. The live preview updates as you type.
+   In **WebOps Base + Design**, when the quote uses a foundation, its panel sets each component to Brand, Redesign, Extend, New or Not used. **Component design** counts each redesigned component once; on a new platform it also counts every reusable component being built.
+7. **Investment.** **Suggest an introduction** writes a starting paragraph for the quote type. Edit the introduction, assumptions, exclusions, payment terms, validity and (optionally) timeline. The live preview updates as you type.
 
 ### Edit library prices
 
-**Pricing Library** lists every item with its section, pricing rule and status. Click the pencil to edit names, plain language descriptions, unit prices, units, batch sizes and prices, volume tiers, proposal section, dependencies, design flag and optional availability. **Add item** creates new items, including design items. **Sections and mapping** shows the section for every item. **AAIF foundation** maintains the block catalogue and integrations.
+**Pricing Library** lists every item with its section, pricing rule and status. Click the pencil to edit names, plain language descriptions, unit prices, units, batch sizes and prices, volume tiers, proposal section, dependencies, design flag and optional availability. **Add item** creates new items, including design items. **Sections and mapping** shows the section for every item. **Quote type presets** sets which lines each quote type starts with.
 
-Click **Save library**. New quotes use the new prices. Existing quotes keep their snapshot until you open one and choose **Client and project → Review current library pricing → Apply to this quote**, which shows every change and the total before and after.
+### Foundations
+
+**Foundations** holds the platforms Anyday has built, one folder each: Components, Content models, Integrations, Capabilities provided and Notes. Add, duplicate, archive, import and export them. A quote keeps its own snapshot; **Setup → Refresh from the current foundation** applies later edits and keeps redesign choices.
+
+Click **Save library**. New quotes use the new prices. Existing quotes keep their snapshot until you open one and choose **Setup → Review current library pricing → Apply to this quote**, which shows every change and the total before and after.
 
 **Export** and **Import** move the library as a JSON file.
 
@@ -126,7 +136,7 @@ Prices, units and pattern keys come from the **Pricing Library** tab of *Pricing
 
 Collapsed library rows keep every original pattern key (`MIG_DYNAMIC_FIRST_500` and `MIG_DYNAMIC_ADD_500` form the Structured records item, for example).
 
-**Duplicate charges are prevented by design:** every URL has exactly one migration category; generated archives are regenerated rather than charged per URL; a design allocation re-attributes part of an existing fee without adding to the total, and cannot exceed that fee; an AAIF integration whose existing connector meets the requirement cannot be priced as a new connector build; a prerequisite already included or provided by the AAIF foundation is never charged again; optional additions never enter the total.
+**Duplicate charges are prevented by design:** every URL has exactly one migration category; generated archives are regenerated rather than charged per URL; a design allocation re-attributes part of an existing fee without adding to the total, and cannot exceed that fee; a foundation integration whose existing connector meets the requirement cannot be priced as a new connector build; a prerequisite already included or provided by the foundation is never charged again; optional additions never enter the total.
 
 ### Decisions taken on ambiguities (all editable)
 
@@ -153,7 +163,7 @@ PyTorch, OpenSSF and CNCF are seeded as Option 1 examples on the existing AAIF f
 
 ## 5. Known gaps and limitations
 
-* **AAIF block documentation was not supplied.** The catalogue holds the 26 block names referenced in the LF workbooks and is flagged as incomplete against the expected 39. Add the rest in Pricing Library → AAIF foundation.
+* **AAIF block documentation was not supplied.** The catalogue holds the 26 block names referenced in the LF workbooks and is flagged as incomplete against the expected 39. Add the rest in Foundations → AAIF → Components.
 * **AAIF integrations** are seeded from Anyday's engagement notes and marked unconfirmed.
 * **Brand:** pure black, pure white and #A10E15 for accents; MD Lorien for headings (embedded from the supplied file) and Inter for body text; layout cues from the *Anyday WebOps for Multibrand Enterprises* deck. Only MD Lorien Regular was supplied, so headings use no italic. Add the italic file to `public/assets/fonts` to bring back the deck's roman and italic mix. MD Lorien allows embedding in PDFs; confirm the web licence covers its use in the app interface.
 * **The scanner reads server rendered HTML.** It does not run JavaScript, so sites that build their content in the browser will show less structure than a visitor sees. Classifications are recommendations for review.
@@ -165,7 +175,7 @@ PyTorch, OpenSSF and CNCF are seeded as Option 1 examples on the existing AAIF f
 ## 6. Project layout
 
 ```
-shared/         pricing engine, inventory model, proposal renderer, library + AAIF seed data
+shared/         pricing engine, inventory model, proposal renderer, library, quote types, migration, foundations seed data (shared/foundations/)
 server/         Express API, JSON storage, PDF (Chromium), scanner/
 client/         Preact interface (built to public/app.js)
 scripts/        library and example generators, client build, UI walkthrough scripts

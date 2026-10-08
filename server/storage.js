@@ -2,7 +2,8 @@
 // files under DATA_DIR so they are easy to back up, diff and restore.
 import fs from 'node:fs';
 import path from 'node:path';
-import { newQuote, duplicateQuote, validateQuoteShape, validateLibraryShape, cryptoId } from '../shared/quote.js';
+import { newQuote, duplicateQuote, validateQuoteShape, validateLibraryShape, cryptoId, emptyFoundation, quoteTypes } from '../shared/quote.js';
+import { migrateQuote, migrateLibrary, catalogueToFoundation } from '../shared/migrate.js';
 
 const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 export class NotFound extends Error { constructor(m) { super(m); this.status = 404; } }
@@ -18,24 +19,50 @@ export function atomicWriteJson(file, obj) {
 const readJson = f => JSON.parse(fs.readFileSync(f, 'utf8'));
 
 export function createStore({ dataDir, root }) {
-  const dirs = { quotes: path.join(dataDir, 'quotes'), scans: path.join(dataDir, 'scans'), libVersions: path.join(dataDir, 'library-versions'), trash: path.join(dataDir, 'trash') };
-  for (const d of [dataDir, ...Object.values(dirs)]) fs.mkdirSync(d, { recursive: true });
+  const dirs = { quotes: path.join(dataDir, 'quotes'), scans: path.join(dataDir, 'scans'), libVersions: path.join(dataDir, 'library-versions'), trash: path.join(dataDir, 'trash'), foundations: path.join(dataDir, 'foundations'), foundationVersions: path.join(dataDir, 'foundation-versions') };
   const libFile = path.join(dataDir, 'library.json');
-  const catFile = path.join(dataDir, 'aaif-catalogue.json');
+  const legacyCatFile = path.join(dataDir, 'aaif-catalogue.json');
   const counterFile = path.join(dataDir, 'counter.json');
+  const defaults = readJson(path.join(root, 'shared/library-default.json'));
+  const firstRun = !fs.existsSync(libFile);
+  migrateDataDir({ dataDir, dirs, libFile, legacyCatFile, defaults });
+  for (const d of [dataDir, ...Object.values(dirs)]) fs.mkdirSync(d, { recursive: true });
 
-  // first run: seed the library, the AAIF catalogue and the LF example quotes
-  if (!fs.existsSync(libFile)) atomicWriteJson(libFile, readJson(path.join(root, 'shared/library-default.json')));
-  if (!fs.existsSync(catFile)) atomicWriteJson(catFile, readJson(path.join(root, 'shared/aaif-catalogue.json')));
+  // first run: seed the library, the foundations and the LF example quotes
+  if (firstRun) atomicWriteJson(libFile, defaults);
+  if (!fs.readdirSync(dirs.foundations).some(f => f.endsWith('.json'))) {
+    const seedF = path.join(root, 'shared/foundations');
+    if (fs.existsSync(seedF)) for (const f of fs.readdirSync(seedF)) if (f.endsWith('.json')) fs.copyFileSync(path.join(seedF, f), path.join(dirs.foundations, f));
+  }
   if (!fs.existsSync(counterFile)) {
     const seedDir = path.join(root, 'seed/quotes');
     let max = 0;
     if (fs.existsSync(seedDir)) for (const f of fs.readdirSync(seedDir)) {
-      const q = readJson(path.join(seedDir, f));
+      const q = migrateQuote(readJson(path.join(seedDir, f)), defaults);
       atomicWriteJson(path.join(dirs.quotes, `${q.id}.json`), q);
       const n = Number((q.number || '').split('-').pop()); if (n > max) max = n;
     }
     atomicWriteJson(counterFile, { next: max + 1 });
+  }
+
+  const foundationPath = id => { if (!ID_RE.test(id || '')) throw new NotFound('Unknown foundation'); return path.join(dirs.foundations, `${id}.json`); };
+  function getFoundation(id) { const p = foundationPath(id); if (!fs.existsSync(p)) throw new NotFound('Foundation not found'); return readJson(p); }
+  function validateFoundation(f) {
+    const errs = [];
+    if (!f || typeof f !== 'object') return ['Not a foundation object'];
+    if (!String(f.name || '').trim()) errs.push('Foundation needs a name');
+    for (const k of ['components', 'contentModels', 'integrations', 'providedCapabilities']) if (f[k] !== undefined && !Array.isArray(f[k])) errs.push(`${k} must be a list`);
+    const ids = new Set();
+    for (const c of f.components || []) { if (!c.id) errs.push('Every component needs an id'); else if (ids.has(c.id)) errs.push(`Duplicate component ${c.id}`); ids.add(c.id); }
+    const iids = new Set();
+    for (const i of f.integrations || []) { if (!i.id) errs.push('Every integration needs an id'); else if (iids.has(i.id)) errs.push(`Duplicate integration ${i.id}`); iids.add(i.id); }
+    return errs;
+  }
+  const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'foundation';
+  function uniqueFoundationId(name) {
+    const base = slug(name); let id = base, n = 2;
+    while (fs.existsSync(path.join(dirs.foundations, `${id}.json`))) id = `${base}-${n++}`;
+    return id;
   }
 
   const quotePath = id => { if (!ID_RE.test(id)) throw new NotFound('Unknown quote'); return path.join(dirs.quotes, `${id}.json`); };
@@ -50,6 +77,30 @@ export function createStore({ dataDir, root }) {
   return {
     dataDir,
     getLibrary: () => readJson(libFile),
+    listFoundations() {
+      return fs.readdirSync(dirs.foundations).filter(f => f.endsWith('.json')).map(f => { try { return readJson(path.join(dirs.foundations, f)); } catch { return null; } })
+        .filter(Boolean).sort((a, b) => (a.archived - b.archived) || a.name.localeCompare(b.name));
+    },
+    getFoundation,
+    createFoundation(fields = {}) {
+      const f = emptyFoundation({ ...fields, id: uniqueFoundationId(fields.name) });
+      const errs = validateFoundation(f); if (errs.length) throw new Invalid('Foundation is not valid', errs);
+      atomicWriteJson(foundationPath(f.id), f); return f;
+    },
+    saveFoundation(f, { baseUpdatedAt } = {}) {
+      const errs = validateFoundation(f); if (errs.length) throw new Invalid('Foundation is not valid', errs);
+      const cur = getFoundation(f.id);
+      if (baseUpdatedAt && cur.updatedAt !== baseUpdatedAt) throw new Conflict('This foundation changed since you opened it. Reload and reapply your edits.', cur);
+      atomicWriteJson(path.join(dirs.foundationVersions, `${f.id}.${(cur.updatedAt || 'unknown').replace(/[:.]/g, '-')}.json`), cur);
+      const next = { ...cur, ...f, id: cur.id, createdAt: cur.createdAt, updatedAt: new Date().toISOString() };
+      atomicWriteJson(foundationPath(f.id), next); return next;
+    },
+    duplicateFoundation(id) {
+      const src = getFoundation(id);
+      const now = new Date().toISOString();
+      const c = { ...JSON.parse(JSON.stringify(src)), id: uniqueFoundationId(`${src.name} copy`), name: `${src.name} (copy)`, archived: false, createdAt: now, updatedAt: now };
+      atomicWriteJson(foundationPath(c.id), c); return c;
+    },
     saveLibrary(lib, { baseUpdatedAt } = {}) {
       const errs = validateLibraryShape(lib);
       if (errs.length) throw new Invalid('Library is not valid', errs);
@@ -61,13 +112,6 @@ export function createStore({ dataDir, root }) {
       return next;
     },
     listLibraryVersions: () => fs.readdirSync(dirs.libVersions).filter(f => f.endsWith('.json')).sort().reverse(),
-    getCatalogue: () => readJson(catFile),
-    saveCatalogue(cat) {
-      if (!Array.isArray(cat?.blocks)) throw new Invalid('Catalogue needs a blocks array');
-      const ids = new Set();
-      for (const b of cat.blocks) { if (!b.id) throw new Invalid('Every block needs an id'); if (ids.has(b.id)) throw new Invalid(`Duplicate block ${b.id}`); ids.add(b.id); }
-      atomicWriteJson(catFile, cat); return cat;
-    },
     listQuotes() {
       return fs.readdirSync(dirs.quotes).filter(f => f.endsWith('.json')).map(f => {
         try { return readJson(path.join(dirs.quotes, f)); } catch { return null; }
@@ -91,7 +135,11 @@ export function createStore({ dataDir, root }) {
       return next;
     },
     createQuote(fields) {
-      const q = newQuote(readJson(libFile), readJson(catFile), { ...fields, number: nextNumber() });
+      const lib = readJson(libFile);
+      const type = quoteTypes(lib).find(t => t.id === fields.type) || quoteTypes(lib).find(t => t.id === (fields.foundationId ? 'foundation_site' : 'new_platform'));
+      const foundation = fields.foundationId ? getFoundation(fields.foundationId) : null;
+      if (type.usesFoundation === 'required' && !foundation) throw new Invalid(`${type.name} needs a foundation`);
+      const q = newQuote(lib, foundation, { ...fields, type: type.id, number: nextNumber() });
       if (fields.createdBy) { q.createdBy = fields.createdBy; q.history[0].by = fields.createdBy; }
       atomicWriteJson(quotePath(q.id), q);
       return q;
@@ -104,7 +152,7 @@ export function createStore({ dataDir, root }) {
     importQuote(obj) {
       const errs = validateQuoteShape(obj);
       if (errs.length) throw new Invalid('Not a valid quote export', errs);
-      const q = JSON.parse(JSON.stringify(obj));
+      const q = migrateQuote(JSON.parse(JSON.stringify(obj)), readJson(libFile));
       if (!ID_RE.test(q.id || '') || fs.existsSync(quotePath(q.id))) q.id = cryptoId();
       if (!q.number) q.number = nextNumber();
       q.history = [...(q.history || []), { at: new Date().toISOString(), kind: 'imported' }];
@@ -125,4 +173,30 @@ export function createStore({ dataDir, root }) {
     },
     nextNumber,
   };
+}
+
+// One-off upgrade of a data folder written by schema version 1 (AAIF baked into quotes).
+// Everything is copied to backups/pre-v2-<timestamp>/ before anything is rewritten.
+function migrateDataDir({ dataDir, dirs, libFile, legacyCatFile, defaults }) {
+  if (!fs.existsSync(libFile)) return;
+  const lib = readJson(libFile);
+  const quoteFiles = fs.existsSync(dirs.quotes) ? fs.readdirSync(dirs.quotes).filter(f => f.endsWith('.json')) : [];
+  const oldQuotes = quoteFiles.filter(f => { try { return (readJson(path.join(dirs.quotes, f)).schemaVersion || 1) < 2; } catch { return false; } });
+  const needs = (lib.schemaVersion || 1) < 2 || oldQuotes.length || fs.existsSync(legacyCatFile);
+  if (!needs) return;
+  const backup = path.join(dataDir, 'backups', `pre-v2-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+  fs.mkdirSync(path.join(backup, 'quotes'), { recursive: true });
+  fs.copyFileSync(libFile, path.join(backup, 'library.json'));
+  if (fs.existsSync(legacyCatFile)) fs.copyFileSync(legacyCatFile, path.join(backup, 'aaif-catalogue.json'));
+  for (const f of oldQuotes) fs.copyFileSync(path.join(dirs.quotes, f), path.join(backup, 'quotes', f));
+  if ((lib.schemaVersion || 1) < 2) atomicWriteJson(libFile, migrateLibrary(lib, defaults));
+  const migratedLib = readJson(libFile);
+  for (const f of oldQuotes) atomicWriteJson(path.join(dirs.quotes, f), migrateQuote(readJson(path.join(dirs.quotes, f)), migratedLib));
+  if (fs.existsSync(legacyCatFile)) {
+    fs.mkdirSync(dirs.foundations, { recursive: true });
+    const target = path.join(dirs.foundations, 'aaif.json');
+    if (!fs.existsSync(target)) atomicWriteJson(target, catalogueToFoundation(readJson(legacyCatFile)));
+    fs.unlinkSync(legacyCatFile);
+  }
+  console.log(`Upgraded data to schema version 2 (${oldQuotes.length} quotes). Backup: ${backup}`);
 }

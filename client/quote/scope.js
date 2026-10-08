@@ -38,7 +38,8 @@ export function ScopeStep({ quote, update, calc }) {
       ${filter === 'optional' && counts.optional ? html`<button class="btn small" onClick=${() => { hideAll(lines.filter(match)); toast('Optional items in this view hidden'); }}>Hide all shown optional items</button>` : null}
     </div><p class="tiny muted" style="margin:6px 0 0">${secCalc.intro} Unselected items default to optional additions. Hide anything irrelevant or incompatible so it stays out of the proposal.</p></div>
 
-    ${sec === 'base' ? html`<${AaifPanel} quote=${quote} update=${update} />` : null}
+    ${sec === 'base' && quote.foundation ? html`<${FoundationPanel} quote=${quote} update=${update} />` : null}
+    ${sec === 'base' && !quote.foundation && quote.type === 'new_platform' ? html`<div class="banner info small">A new platform built from scratch. Component design counts every reusable component included below, so set the component quantities first.</div>` : null}
 
     ${impl.length ? html`<div class="card flush"><div class="cat-head"><span>${sec === 'base' ? 'Implementation' : secCalc.name}</span><span>${fmtMoney(secCalc.implementationSubtotal)}</span></div>
       ${groupBy(impl, l => l.item.subcategory).map(([sub, ls]) => html`<div class="subcat-head">${sub}</div>${ls.map(l => html`<${ItemRow} key=${l.id} l=${l} quote=${quote} setLine=${setLine} byId=${byId} />`)}`)}</div>` : null}
@@ -55,7 +56,10 @@ function groupBy(arr, fn) { const m = new Map(); for (const a of arr) { const k 
 function ItemRow({ l, quote, setLine, byId }) {
   const [open, setOpen] = useState(false);
   const p = l.pricing; const item = l.item; const line = l.line;
-  const linked = item.quantitySource === 'aaif_redesign_count';
+  const linked = item.quantitySource === 'component_design_count' || item.quantitySource === 'aaif_redesign_count';
+  const linkedHelp = quote.type === 'new_platform'
+    ? `Counts the reusable components included in Implementation${quote.foundation ? `, plus ${quote.foundation.name} components marked Redesign` : ''}.`
+    : `Counts each unique ${quote.foundation?.name || 'foundation'} component marked Redesign once, however often it appears. Choose components in the panel above.`;
   const amountCell = () => {
     if (l.state !== 'included') return html`<span class="small muted">${l.state === 'optional' ? shortLabel(p) : 'Hidden'}</span>`;
     if (l.amount === null) return html`<${Badge} kind="danger">${l.result.status === 'qty_needed' ? 'Quantity needed' : 'Price needed'}<//>`;
@@ -68,6 +72,7 @@ function ItemRow({ l, quote, setLine, byId }) {
   if (p.status === 'unpriced' && l.state === 'included') badges.push(html`<${Badge} kind="danger">Price needed<//>`);
   if (line.provisional || line.qtySource === 'example') badges.push(html`<${Badge}>Provisional<//>`);
   if (line.qtySource === 'inventory') badges.push(html`<${Badge} kind="info">From inventory<//>`);
+  if (l.prior) badges.push(html`<${Badge} kind="info" title="Volume pricing continues from the sites already live">Continues from ${fmtInt(l.prior)} live<//>`);
   if (l.allocated) badges.push(html`<${Badge} kind="accent">Allocated<//>`);
   if (l.allocatedOut) badges.push(html`<${Badge} title="Part of this fee is shown under design">${fmtMoney(l.allocatedOut)} shown as design<//>`);
   return html`<div class=${'item state-' + l.state}>
@@ -76,7 +81,7 @@ function ItemRow({ l, quote, setLine, byId }) {
       <${Seg} value=${l.state} options=${STATE_OPTS} size="small" onChange=${v => setLine(l.id, { state: v })} />
       <div class="row" style="justify-content:flex-end;gap:6px">
         ${p.model === 'included' ? html`<span class="small muted">Included</span>`
-          : linked ? html`<span class="small" title="Linked to the AAIF blocks marked Redesign">${plural(l.qty || 0, p.qtyUnit, p.qtyUnitPlural)}</span>`
+          : linked ? html`<span class="small" title=${linkedHelp}>${plural(l.qty || 0, p.qtyUnit, p.qtyUnitPlural)}</span>`
           : l.state === 'included' ? html`<${NumInput} value=${line.qty} ariaLabel=${'Quantity for ' + item.name} placeholder="Qty" onChange=${v => setLine(l.id, { qty: v, qtySource: 'manual' })} /><span class="tiny muted">${p.qtyUnitPlural}</span>`
           : l.state === 'optional' ? html`<${NumInput} value=${line.optionalQty} ariaLabel=${'Quantity for optional estimate of ' + item.name} placeholder="Est. qty" onChange=${v => setLine(l.id, { optionalQty: v })} />` : null}
       </div>
@@ -89,8 +94,8 @@ function ItemRow({ l, quote, setLine, byId }) {
         <dt>What the client receives</dt><dd>${item.receives}</dd>
         <dt>How it is priced</dt><dd>${describePricing(p)}${p.status === 'starting_at' ? ' A starting price stays distinct from a confirmed price until you confirm it below.' : ''}</dd>
         ${l.result?.breakdown?.length ? html`<dt>This quote</dt><dd>${l.result.breakdown.map(b => html`<div class="small">${b.label}: <b>${fmtMoney(b.amount)}</b></div>`)}</dd>` : null}
-        ${item.dependsOn?.length ? html`<dt>Normally requires</dt><dd class="small">${item.dependsOn.map(g => g.map(id => byId[id]?.item.name || id).join(' or ')).join('; ')}. A prerequisite already included, or provided by the AAIF foundation, is never charged twice.</dd>` : null}
-        ${linked ? html`<dt>Quantity</dt><dd class="small">Counts each unique AAIF block marked Redesign once for this site, however often it appears. Choose blocks in the AAIF foundation panel above.</dd>` : null}
+        ${item.dependsOn?.length ? html`<dt>Normally requires</dt><dd class="small">${item.dependsOn.map(g => g.map(id => byId[id]?.item.name || id).join(' or ')).join('; ')}. A prerequisite already included, or provided by the foundation, is never charged twice.</dd>` : null}
+        ${linked ? html`<dt>Quantity</dt><dd class="small">${linkedHelp}</dd>` : null}
       </dl>
       <div class="stack" style="gap:10px">
         ${p.status === 'starting_at' || item.pricing.status === 'starting_at' ? html`<${Field} label="Confirmed price (this quote)" hint="Replaces the starting price for this quote only."><div class="row"><span>$</span><${NumInput} cls="input money" value=${line.confirmedPrice != null ? line.confirmedPrice / 100 : null} onChange=${v => setLine(l.id, { confirmedPrice: v === null ? undefined : toCents(v) })} /><span class="tiny muted">per ${p.qtyUnit}</span></div><//>` : null}
@@ -134,42 +139,44 @@ function OverrideEditor({ l, setLine }) {
     </div></details>`;
 }
 
-function AaifPanel({ quote, update }) {
-  const a = quote.aaif || { blocks: [], integrations: [] };
+function FoundationPanel({ quote, update }) {
+  const f = quote.foundation;
   const c = blockTreatmentCounts(quote);
   const [paste, setPaste] = useState('');
-  const setBlock = (id, patch) => update(q => ({ ...q, aaif: { ...q.aaif, blocks: q.aaif.blocks.map(b => b.id === id ? { ...b, ...patch } : b) } }));
-  const setInteg = (i, patch) => update(q => ({ ...q, aaif: { ...q.aaif, integrations: q.aaif.integrations.map((x, j) => j === i ? { ...x, ...patch } : x) } }));
-  const caps = quote.aaif?.providedCapabilities || [];
+  const setF = fn => update(q => ({ ...q, foundation: fn(q.foundation) }));
+  const setComp = (id, patch) => setF(x => ({ ...x, components: x.components.map(b => b.id === id ? { ...b, ...patch } : b) }));
+  const setInteg = (i, patch) => setF(x => ({ ...x, integrations: x.integrations.map((y, j) => j === i ? { ...y, ...patch } : y) }));
+  const caps = f.providedCapabilities || [];
   const baseItems = quote.pricingSnapshot.items.filter(i => i.section === 'base' && !i.isDesign);
-  const redesigned = a.blocks.filter(b => b.treatment === 'redesign');
-  function addBlocks() {
-    const ids = paste.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
-    update(q => { const have = new Set(q.aaif.blocks.map(b => b.id)); const add = ids.filter(id => !have.has(id)).map(id => ({ id, name: blockLabel(id), treatment: 'brand', note: '' })); return { ...q, aaif: { ...q.aaif, blocks: [...q.aaif.blocks, ...add] } }; });
-    setPaste(''); toast('Blocks added to this quote');
+  const redesigned = f.components.filter(b => b.treatment === 'redesign');
+  const newPlatform = quote.type === 'new_platform';
+  function addComponents() {
+    const ids = paste.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    setF(x => { const have = new Set(x.components.map(b => b.id)); const add = ids.filter(id => !have.has(id)).map(id => ({ id, name: blockLabel(id), treatment: 'new', note: '', addedInQuote: true })); return { ...x, components: [...x.components, ...add] }; });
+    setPaste(''); toast('Components added to this quote only');
   }
   return html`<div class="card">
-    <div class="spread"><h2>AAIF foundation</h2><label class="check"><input type="checkbox" checked=${a.foundationReused} onChange=${e => update(q => ({ ...q, aaif: { ...q.aaif, foundationReused: e.target.checked } }))} /> Reusing the existing AAIF foundation</label></div>
-    ${!a.catalogue?.complete ? html`<div class="banner warn small" style="margin:8px 0">The AAIF documentation describes ${a.catalogue?.expectedCount || 39} blocks, but only ${a.blocks.length} block names were available (from the LF workbooks). Add the missing ones below or import the full list in Pricing Library → AAIF foundation.</div>` : null}
-    <p class="small">Choose what happens to each existing block. <b>Brand</b> applies branding with existing controls (Brand configuration). <b>Redesign</b> is a visual redesign that keeps the block's schema and behaviour. <b>Extend</b> and <b>New</b> need separately identified development scope. Nothing is redesigned by default.</p>
+    <div class="spread"><h2>${newPlatform ? `Starting from ${f.name}` : `Reusing ${f.name}`}</h2><span class="tiny muted">Foundation snapshot ${(f.takenAt || '').slice(0, 10)}${f.owner ? ` · ${f.owner}` : ''}</span></div>
+    ${!f.complete && f.expectedComponents ? html`<div class="banner warn small" style="margin:8px 0">The foundation documents ${f.expectedComponents} components, but only ${f.components.length} are recorded. Complete the list under Foundations, then refresh the snapshot in Setup.</div>` : null}
+    <p class="small">Choose what happens to each existing component. <b>Brand</b> applies branding with existing controls. <b>Redesign</b> is a visual redesign that keeps the component's schema and behaviour. <b>Extend</b> and <b>New</b> need separately identified development scope. Nothing is redesigned by default.</p>
     <div class="row wrap" style="margin:8px 0">${TREATMENTS.map(t => html`<${Badge} kind=${t.value === 'redesign' ? 'accent' : ''}>${t.label}: ${c[t.value] || 0}<//>`)}<span class="grow"></span>
-      <button class="btn small" onClick=${() => update(q => ({ ...q, aaif: { ...q.aaif, blocks: q.aaif.blocks.map(b => ({ ...b, treatment: 'brand' })) } }))}>Reset all to Brand</button></div>
+      <button class="btn small" onClick=${() => setF(x => ({ ...x, components: x.components.map(b => ({ ...b, treatment: 'brand' })) }))}>Reset all to Brand</button></div>
     <div class="small" style="margin-bottom:8px"><b>${redesigned.length} selected for redesign:</b> ${redesigned.map(b => b.name).join(', ') || 'none'}</div>
-    <details class="more"><summary>Choose blocks (${a.blocks.length} in the catalogue, ${redesigned.length} marked Redesign)</summary>
-    <div class="blocks-grid" style="margin-top:10px">${a.blocks.map(b => html`<div class=${'block-row' + (b.treatment === 'redesign' ? ' redesign' : '')}><div class="small"><b>${b.name}</b><div class="tiny muted">${b.id}</div></div><${Seg} size="small" value=${b.treatment} options=${TREATMENTS.map(t => ({ ...t, label: t.label }))} onChange=${v => setBlock(b.id, { treatment: v })} /></div>`)}</div>
-    <div class="row" style="margin-top:10px"><input class="input" placeholder="Add block ids, comma separated (i.e. statsSection, logoWall)" value=${paste} onInput=${e => setPaste(e.target.value)} /><button class="btn small" disabled=${!paste.trim()} onClick=${addBlocks}>Add blocks</button></div></details>
+    <details class="more"><summary>Choose components (${f.components.length} in the foundation, ${redesigned.length} marked Redesign)</summary>
+    <div class="blocks-grid" style="margin-top:10px">${f.components.map(b => html`<div class=${'block-row' + (b.treatment === 'redesign' ? ' redesign' : '')}><div class="small"><b>${b.name}</b>${b.addedInQuote ? html` <${Badge}>This quote<//>` : null}<div class="tiny muted">${b.id}</div></div><${Seg} size="small" value=${b.treatment} options=${TREATMENTS} onChange=${v => setComp(b.id, { treatment: v })} /></div>`)}</div>
+    <div class="row" style="margin-top:10px"><input class="input" placeholder="Add component ids for this quote, comma separated" value=${paste} onInput=${e => setPaste(e.target.value)} /><button class="btn small" disabled=${!paste.trim()} onClick=${addComponents}>Add components</button></div></details>
 
-    <h3 style="margin-top:18px">Existing integrations</h3>
-    <p class="small">Existing connectors need configuration and compatibility review. When an existing AAIF connector meets the requirement, price it as configuration (i.e. Existing API integration setup), never as a new connector build.</p>
+    ${f.integrations.length ? html`<h3 style="margin-top:18px">Existing integrations</h3>
+    <p class="small">Existing connectors need configuration and compatibility review. When an existing connector meets the requirement, price it as configuration (i.e. Existing API integration setup), never as a new connector build.</p>
     <div class="scroll-x"><table class="t"><thead><tr><th>Integration</th><th>Existing connector meets the requirement?</th><th>Priced as</th></tr></thead><tbody>
-      ${a.integrations.map((x, i) => html`<tr><td><b>${x.name}</b>${x.confirmed === false ? html` <${Badge} kind="warn">Unconfirmed<//>` : null}<div class="tiny muted">${x.source || ''}</div></td>
+      ${f.integrations.map((x, i) => html`<tr><td><b>${x.name}</b>${x.confirmed === false ? html` <${Badge} kind="warn">Unconfirmed<//>` : null}<div class="tiny muted">${x.source || ''}</div></td>
         <td><${Seg} size="small" value=${x.existingMeetsRequirement === true ? 'yes' : x.existingMeetsRequirement === false ? 'no' : 'unknown'} options=${[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }, { value: 'unknown', label: 'Not reviewed' }]} onChange=${v => setInteg(i, { existingMeetsRequirement: v === 'yes' ? true : v === 'no' ? false : null })} /></td>
         <td><select class="input" style="width:auto" value=${x.pricedAs || ''} onChange=${e => setInteg(i, { pricedAs: e.target.value || null })} aria-label="Priced as"><option value="">Not priced separately</option>${quote.pricingSnapshot.items.filter(it => it.category === 'Integrations').map(it => html`<option value=${it.id}>${it.name}</option>`)}</select></td></tr>`)}
-    </tbody></table></div>
+    </tbody></table></div>` : null}
 
-    <details class="more" style="margin-top:14px"><summary>Capabilities already provided by the AAIF foundation (${caps.length})</summary>
-      <p class="small">Tick capabilities the foundation already provides. Items that depend on them will not ask for the prerequisite to be charged again.</p>
-      <div class="blocks-grid">${baseItems.map(it => html`<label class="check small"><input type="checkbox" checked=${caps.includes(it.id)} onChange=${e => update(q => ({ ...q, aaif: { ...q.aaif, providedCapabilities: e.target.checked ? [...caps, it.id] : caps.filter(x => x !== it.id) } }))} /> ${it.name}</label>`)}</div>
+    <details class="more" style="margin-top:14px"><summary>Capabilities already provided by ${f.name} (${caps.length})</summary>
+      <p class="small">Tick capabilities the foundation already provides. Items that depend on them will not ask for the prerequisite to be charged again. This changes this quote only; edit the foundation itself under Foundations.</p>
+      <div class="blocks-grid">${baseItems.map(it => html`<label class="check small"><input type="checkbox" checked=${caps.includes(it.id)} onChange=${e => setF(x => ({ ...x, providedCapabilities: e.target.checked ? [...caps, it.id] : caps.filter(y => y !== it.id) }))} /> ${it.name}</label>`)}</div>
     </details>
   </div>`;
 }
