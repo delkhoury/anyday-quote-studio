@@ -3,7 +3,7 @@ import { escapeHtml as h } from '../shared/format.js';
 
 export function loginPage({ error = '' } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sign in · Anyday Quote Studio</title><link rel="icon" href="/assets/anyday-mark.png">
+<title>Sign in · Anyday Quote Studio</title><link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png"><link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png"><link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <style>
 @font-face { font-family: 'MD Lorien'; src: url(/assets/fonts/md-lorien-regular.woff2) format('woff2'); font-display: swap; }
 @font-face { font-family: 'Inter'; font-weight: 400; src: url(/assets/fonts/inter-latin-400-normal.woff2) format('woff2'); font-display: swap; }

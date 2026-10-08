@@ -137,7 +137,7 @@ export function installAuth(app, { cfg = authConfig(), loginPage, fetchImpl = fe
   app.get('/auth/logout', (req, res) => { setCookie(res, COOKIE, '', { maxAge: 0, secure: cfg.secureCookies }); res.redirect('/auth/login'); });
   app.get('/api/me', (req, res) => { const u = currentUser(req, cfg); if (!u) return res.status(401).json({ error: 'Sign in required' }); res.json({ user: { email: u.email, name: u.name, picture: u.picture }, auth: true }); });
 
-  const PUBLIC = [/^\/auth\//, /^\/api\/health$/, /^\/assets\/(fonts\/|anyday-logo-white\.png$|anyday-mark\.png$)/];
+  const PUBLIC = [/^\/auth\//, /^\/api\/health$/, /^\/favicon\.ico$/, /^\/assets\/(fonts\/|anyday-logo-white\.png$|anyday-mark\.png$|favicon-\d+\.png$|apple-touch-icon\.png$)/];
   return (req, res, next) => {
     if (PUBLIC.some(re => re.test(req.path))) return next();
     const u = currentUser(req, cfg);
