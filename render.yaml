@@ -1,0 +1,34 @@
+# Render Blueprint for Anyday Quote Studio.
+# Render → New → Blueprint → pick this repository. You will be asked for the two Google values.
+services:
+  - type: web
+    name: anyday-quote-studio
+    runtime: docker
+    plan: 1c-2g               # 1 CPU, 2 GB RAM. PDF export needs the memory; the 512 MB plan is too small.
+    region: ohio              # closest Render region to Toronto; cannot be changed later
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit # redeploys whenever the main branch changes
+    domains:
+      - quotes.anyday.inc
+    disk:
+      name: quote-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATA_DIR
+        value: /data
+      - key: PUBLIC_URL
+        value: https://quotes.anyday.inc
+      - key: ALLOWED_DOMAIN
+        value: anyday.inc
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false

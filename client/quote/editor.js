@@ -1,0 +1,137 @@
+import { useState, useEffect, useMemo, useRef, useCallback } from 'preact/hooks';
+import { html, Badge, Field, TextInput, Modal, toast } from '../ui.js';
+import { calculateQuote } from '../../shared/pricing.js';
+import { fmtMoney, fmtDate } from '../../shared/format.js';
+import { download } from '../api.js';
+import { AnalyseStep } from './analyse.js';
+import { ReviewStep } from './review.js';
+import { ScopeStep } from './scope.js';
+import { InvestmentStep } from './investment.js';
+
+export const STEPS = [
+  { id: 'details', t: 'Client and project', s: 'Who, what and where' },
+  { id: 'analyse', t: 'Analyse website', s: 'Sitemaps, pages and media' },
+  { id: 'review', t: 'Review inventory', s: 'Confirm classifications' },
+  { id: 'scope', t: 'Select scope', s: 'Implementation, design, migration' },
+  { id: 'investment', t: 'Investment and proposal', s: 'Preview and export' },
+];
+
+// Load, edit and autosave one quote.
+function useQuote(api, id) {
+  const [quote, setQuote] = useState(null);
+  const [error, setError] = useState(null);
+  const [status, setStatus] = useState('saved');
+  const base = useRef(null); const timer = useRef(null); const latest = useRef(null); const saving = useRef(false);
+  useEffect(() => {
+    let live = true;
+    api.quote(id).then(q => { if (!live) return; base.current = q.updatedAt; latest.current = q; setQuote(q); }).catch(e => live && setError(e.message));
+    return () => { live = false; clearTimeout(timer.current); };
+  }, [id]);
+  const save = useCallback(async () => {
+    if (saving.current) { timer.current = setTimeout(save, 300); return; }
+    saving.current = true; setStatus('saving');
+    const q = latest.current;
+    try {
+      const saved = await api.saveQuote(q, base.current);
+      base.current = saved.updatedAt;
+      if (latest.current === q) { latest.current = saved; setQuote(saved); }
+      else latest.current = { ...latest.current, number: saved.number, updatedAt: saved.updatedAt };
+      setStatus(latest.current === saved ? 'saved' : 'pending');
+    } catch (e) {
+      setStatus('error'); setError(e.status === 409 ? 'This quote was changed in another window. Reload to see the latest version; your unsaved edits are still on screen.' : e.message);
+    } finally { saving.current = false; }
+  }, [api]);
+  const update = useCallback(fn => {
+    const next = typeof fn === 'function' ? fn(latest.current) : fn;
+    latest.current = next; setQuote(next); setStatus('pending');
+    clearTimeout(timer.current); timer.current = setTimeout(save, 700);
+  }, [save]);
+  const replace = useCallback(q => { base.current = q.updatedAt; latest.current = q; setQuote(q); setStatus('saved'); }, []);
+  const flush = useCallback(async () => { clearTimeout(timer.current); if (status !== 'saved') await save(); }, [save, status]);
+  return { quote, update, replace, status, error, setError, flush };
+}
+
+export function QuoteEditor({ api, id, step = 'details', health, library, go }) {
+  const { quote, update, replace, status, error, setError, flush } = useQuote(api, id);
+  const calc = useMemo(() => { if (!quote) return null; try { return calculateQuote(quote); } catch (e) { return { error: e.message }; } }, [quote]);
+  if (error && !quote) return html`<div class="banner danger">${error}</div>`;
+  if (!quote || !calc) return html`<div class="empty">Loading quote…</div>`;
+  const ctx = { api, quote, update, replace, calc, health, library, go, flush };
+  const idx = STEPS.findIndex(s => s.id === step);
+  const Step = { details: DetailsStep, analyse: AnalyseStep, review: ReviewStep, scope: ScopeStep, investment: InvestmentStep }[step] || DetailsStep;
+  return html`
+    <div class="page-head">
+      <div>
+        <div class="eyebrow">${quote.number || 'New quote'}${quote.example ? ' · Example' : ''}</div>
+        <h1>${quote.client?.name || 'Untitled client'}</h1>
+        <div class="muted" style="margin-top:6px">${quote.project?.name || 'No project name yet'}${quote.project?.url ? html` · <a href=${quote.project.url} target="_blank" rel="noopener">${quote.project.url.replace(/^https?:\/\//, '')}</a>` : ''}</div>
+      </div>
+      <div class="row wrap">
+        <span class="saved" aria-live="polite">${{ saved: 'All changes saved', saving: 'Saving…', pending: 'Unsaved changes', error: 'Not saved' }[status]}</span>
+        <button class="btn" onClick=${() => download(`${quote.number || 'quote'}.json`, quote)}>Export quote</button>
+        <button class="btn" onClick=${async () => { await flush(); const c = await api.duplicateQuote(quote.id); toast(`Duplicated as ${c.number}`); go(`#/quote/${c.id}/details`); }}>Duplicate</button>
+      </div>
+    </div>
+    ${error ? html`<div class="banner danger" style="margin-bottom:12px">${error} <button class="btn small" onClick=${() => setError(null)}>Dismiss</button></div>` : null}
+    ${calc.error ? html`<div class="banner danger">Calculation error: ${calc.error}</div>` : null}
+    ${quote.example ? html`<div class="banner warn" style="margin-bottom:12px"><b>${quote.example.label}.</b> Built from ${quote.example.workbook} (${quote.example.workbookDate}). The inventory is a dated example, not a fresh scan; page levels and block redesign selections are provisional.</div>` : null}
+    <nav class="stepper" aria-label="Quote steps">
+      ${STEPS.map((s, i) => html`<a href=${`#/quote/${quote.id}/${s.id}`} class=${i === idx ? 'active' : ''} aria-current=${i === idx ? 'step' : null}><div class="n">${i + 1}</div><div class="t">${s.t}</div><div class="s">${s.s}</div></a>`)}
+    </nav>
+    ${step === 'investment' ? html`<${Step} ...${ctx} />` : html`<div class="layout-rail"><div class="grow"><${Step} ...${ctx} /></div><${Rail} calc=${calc} quote=${quote} go=${go} /></div>`}
+    <div class="spread" style="margin-top:22px">
+      ${idx > 0 ? html`<a class="btn" href=${`#/quote/${quote.id}/${STEPS[idx - 1].id}`}>← ${STEPS[idx - 1].t}</a>` : html`<span></span>`}
+      ${idx < STEPS.length - 1 ? html`<a class="btn dark" href=${`#/quote/${quote.id}/${STEPS[idx + 1].id}`}>${STEPS[idx + 1].t} →</a>` : null}
+    </div>`;
+}
+
+export function Rail({ calc, quote, go }) {
+  return html`<aside class="rail card" aria-label="Investment summary">
+    <h3>Investment</h3>
+    ${calc.sections.map(s => html`
+      <div class="money-row"><span>${s.name}</span><b class="num">${s.empty ? 'n/a' : fmtMoney(s.subtotal)}${s.pending ? '+' : ''}</b></div>
+      ${s.id === 'base' && !s.empty ? html`<div class="money-row sub"><span>Implementation</span><span class="num">${fmtMoney(s.implementationSubtotal)}</span></div>
+        <div class="money-row sub"><span>Design${s.designAllocated ? ' (incl. allocated)' : ''}</span><span class="num">${fmtMoney(s.designSubtotal)}${s.design.some(d => d.amount === null) ? '+' : ''}</span></div>` : null}`)}
+    <div class="total-box">
+      <div class="caps" style="opacity:.8">${calc.totalStatus === 'starting_at' ? 'Total, starting at' : 'Total investment'} · USD</div>
+      <div class="v">${fmtMoney(calc.total)}</div>
+      ${calc.totalStatus === 'pending' ? html`<div class="small" style="margin-top:6px">Plus ${calc.blockers.length} item${calc.blockers.length === 1 ? '' : 's'} pending</div>` : null}
+    </div>
+    ${calc.blockers.length ? html`<div style="margin-top:12px"><div class="caps" style="color:var(--danger)">Blocks final export</div>
+      <ul class="small" style="padding-left:18px;margin:6px 0">${calc.blockers.slice(0, 8).map(b => html`<li>${b.message}</li>`)}</ul>
+      <a class="small" href=${`#/quote/${quote.id}/scope`}>Resolve in scope →</a></div>` : html`<div class="banner ok small" style="margin-top:12px">Ready for final export</div>`}
+    ${calc.warnings.length ? html`<details style="margin-top:10px"><summary class="small" style="cursor:pointer;font-weight:700;color:var(--warn)">${calc.warnings.length} check${calc.warnings.length === 1 ? '' : 's'} to review</summary><ul class="small" style="padding-left:18px">${calc.warnings.map(w => html`<li>${w.message}</li>`)}</ul></details>` : null}
+    <div class="tiny muted" style="margin-top:10px">${calc.optional.length} optional additions are listed separately and never count toward the total.</div>
+  </aside>`;
+}
+
+function DetailsStep({ api, quote, update, replace, library, flush }) {
+  const [diff, setDiff] = useState(null);
+  const set = (path, v) => update(q => { const n = { ...q }; const [a, b] = path.split('.'); n[a] = b ? { ...(q[a] || {}), [b]: v } : v; return n; });
+  const snap = quote.pricingSnapshot;
+  const libChanged = library && (library.updatedAt !== snap.libraryUpdatedAt || library.version !== snap.libraryVersion);
+  async function review() { await flush(); setDiff(await api.applyLibrary(quote.id, false)); }
+  async function apply() { const r = await api.applyLibrary(quote.id, true); replace(r.quote); setDiff(null); toast('Current library pricing applied to this quote'); }
+  return html`<div class="stack">
+    <div class="card"><h2>Client and project</h2>
+      <div class="grid2" style="margin-top:12px">
+        <${Field} label="Client"><${TextInput} value=${quote.client?.name} onChange=${v => set('client.name', v)} placeholder="Organisation name" /><//>
+        <${Field} label="Client contact (internal)"><${TextInput} value=${quote.client?.contact} onChange=${v => set('client.contact', v)} placeholder="Name, email" /><//>
+        <${Field} label="Project"><${TextInput} value=${quote.project?.name} onChange=${v => set('project.name', v)} placeholder="i.e. Website on the AAIF foundation" /><//>
+        <${Field} label="Website URL" hint="Used by Analyse website. Subdomains and external sites stay separate unless you include them."><${TextInput} value=${quote.project?.url} onChange=${v => set('project.url', v.trim())} placeholder="https://example.org" /><//>
+        <${Field} label="Prepared by"><${TextInput} value=${quote.preparedBy} onChange=${v => set('preparedBy', v)} /><//>
+        <${Field} label="Quote number"><input class="input" value=${quote.number || 'Assigned on save'} disabled /><//>
+      </div>
+    </div>
+    <div class="card"><div class="spread"><h2>Pricing snapshot</h2>${libChanged ? html`<${Badge} kind="warn">Library has changed<//>` : html`<${Badge} kind="ok">Matches library<//>`}</div>
+      <p class="small">This quote keeps its own copy of the Pricing Library taken ${fmtDate(snap.takenAt)} (library version ${snap.libraryVersion}). Library edits affect new quotes only. Existing quotes change only when you apply current pricing here. Quote specific overrides are kept.</p>
+      <button class="btn" onClick=${review} disabled=${!libChanged}>Review current library pricing</button>
+    </div>
+    ${quote.provisional?.length ? html`<div class="card"><h3>Provisional notes from the source workbook</h3><ul class="small" style="padding-left:18px;margin:0">${quote.provisional.map(p => html`<li>${p}</li>`)}</ul></div>` : null}
+    <details class="card more"><summary>History (${(quote.history || []).length})</summary><ul class="small" style="padding-left:18px">${(quote.history || []).slice().reverse().map(hh => html`<li>${fmtDate(hh.at)}: ${hh.kind.replace(/_/g, ' ')}${hh.changes !== undefined ? ` (${hh.changes} changes)` : ''}${hh.rows ? ` (${hh.rows.length} quantities)` : ''}</li>`)}</ul></details>
+    ${diff ? html`<${Modal} title="Apply current library pricing" onClose=${() => setDiff(null)} footer=${html`<button class="btn" onClick=${() => setDiff(null)}>Cancel</button><button class="btn primary" disabled=${!diff.changes.length} onClick=${apply}>Apply to this quote</button>`}>
+      <p>Total changes from <b>${fmtMoney(diff.before)}</b> to <b>${fmtMoney(diff.after)}</b> (priced items only). Quantities, states and quote specific overrides are kept.</p>
+      ${diff.changes.length ? html`<table class="t"><thead><tr><th>Item</th><th>Change</th><th>Before</th><th>After</th></tr></thead><tbody>${diff.changes.map(c => html`<tr><td>${c.name}</td><td>${c.kind}</td><td class="small">${c.before || ''}</td><td class="small">${c.after || ''}</td></tr>`)}</tbody></table>` : html`<div class="empty">No pricing differences.</div>`}
+    <//>` : null}
+  </div>`;
+}

@@ -1,0 +1,159 @@
+{
+ "schemaVersion": 1,
+ "complete": false,
+ "expectedCount": 39,
+ "source": "Block names referenced in the PyTorch, OpenSSF and CNCF workbooks (Oct 6 2026). The AAIF documentation describing all 39 blocks was not supplied; import it to complete this list.",
+ "blocks": [
+  {
+   "id": "hero",
+   "name": "Hero",
+   "documented": false
+  },
+  {
+   "id": "pageHero",
+   "name": "Page Hero",
+   "documented": false
+  },
+  {
+   "id": "mediaSplitIntro",
+   "name": "Media Split Intro",
+   "documented": false
+  },
+  {
+   "id": "calloutWithChecklist",
+   "name": "Callout With Checklist",
+   "documented": false
+  },
+  {
+   "id": "iconCardsSection",
+   "name": "Icon Cards Section",
+   "documented": false
+  },
+  {
+   "id": "accordionSection",
+   "name": "Accordion Section",
+   "documented": false
+  },
+  {
+   "id": "blogList",
+   "name": "Blog List",
+   "documented": false
+  },
+  {
+   "id": "newsList",
+   "name": "News List",
+   "documented": false
+  },
+  {
+   "id": "videoListingSection",
+   "name": "Video Listing Section",
+   "documented": false
+  },
+  {
+   "id": "writtenContentHub",
+   "name": "Written Content Hub",
+   "documented": false
+  },
+  {
+   "id": "projects",
+   "name": "Projects",
+   "documented": false
+  },
+  {
+   "id": "peopleSection",
+   "name": "People Section",
+   "documented": false
+  },
+  {
+   "id": "staffListSection",
+   "name": "Staff List Section",
+   "documented": false
+  },
+  {
+   "id": "ambassadorsSection",
+   "name": "Ambassadors Section",
+   "documented": false
+  },
+  {
+   "id": "membersSection",
+   "name": "Members Section",
+   "documented": false
+  },
+  {
+   "id": "membershipSection",
+   "name": "Membership Section",
+   "documented": false
+  },
+  {
+   "id": "workingGroupsSection",
+   "name": "Working Groups Section",
+   "documented": false
+  },
+  {
+   "id": "calendar",
+   "name": "Calendar",
+   "documented": false
+  },
+  {
+   "id": "contactSection",
+   "name": "Contact Section",
+   "documented": false
+  },
+  {
+   "id": "subscription",
+   "name": "Subscription",
+   "documented": false
+  },
+  {
+   "id": "footerCallout",
+   "name": "Footer Callout",
+   "documented": false
+  },
+  {
+   "id": "faq",
+   "name": "FAQ",
+   "documented": false
+  },
+  {
+   "id": "podcastListingSection",
+   "name": "Podcast Listing Section",
+   "documented": false
+  },
+  {
+   "id": "tabsListingSection",
+   "name": "Tabs Listing Section",
+   "documented": false
+  },
+  {
+   "id": "testimonial",
+   "name": "Testimonial",
+   "documented": false
+  },
+  {
+   "id": "mediaContentHub",
+   "name": "Media Content Hub",
+   "documented": false
+  }
+ ],
+ "integrations": [
+  {
+   "id": "luma_gateway",
+   "name": "Luma events via Gateway",
+   "confirmed": false,
+   "source": "Anyday engagement notes, Jul 30 2026. Confirm against AAIF documentation."
+  },
+  {
+   "id": "lfx_data",
+   "name": "LFX structured project and governance data",
+   "confirmed": false,
+   "source": "Anyday engagement notes. Confirm against AAIF documentation."
+  },
+  {
+   "id": "lfx_committee_calendar",
+   "name": "LFX committee meetings (V2 API) for calendar",
+   "confirmed": false,
+   "source": "Anyday engagement notes, Jul 30 2026. Confirm against AAIF documentation."
+  }
+ ],
+ "providedCapabilities": []
+}

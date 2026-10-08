@@ -1,0 +1,22 @@
+// UI walkthrough of a live scan: create quote, analyse, merge, review.
+import { chromium } from 'playwright-core';
+const [base, site, out] = process.argv.slice(2);
+const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const page = await b.newPage({ viewport: { width: 1440, height: 1000 } });
+const errors = []; page.on('pageerror', e => errors.push(e.message));
+await page.goto(base + '/#/quotes');
+await page.getByRole('button', { name: 'New quote' }).click();
+await page.getByPlaceholder('Organisation name').fill('Fixture Foundation');
+await page.getByPlaceholder('https://example.org').fill(site);
+await page.getByRole('button', { name: 'Create quote' }).click();
+await page.waitForURL(/analyse/);
+await page.getByRole('button', { name: 'Analyse website' }).click();
+await page.waitForTimeout(400); await page.screenshot({ path: out + '/scan-1-running.png' });
+await page.getByRole('button', { name: /Merge .* URLs/ }).waitFor({ timeout: 60000 });
+await page.screenshot({ path: out + '/scan-2-done.png', fullPage: true });
+await page.getByLabel(/I understand this scan is partial/).check();
+await page.getByRole('button', { name: /Merge .* URLs/ }).click();
+await page.waitForURL(/review/); await page.waitForTimeout(800);
+await page.screenshot({ path: out + '/scan-3-review.png', fullPage: true });
+console.log('errors', errors);
+await b.close();

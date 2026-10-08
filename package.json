@@ -1,0 +1,32 @@
+{
+  "name": "anyday-quote-studio",
+  "version": "1.0.0",
+  "description": "Anyday Quote Studio: website analysis, implementation quoting and branded PDF proposals",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "start": "node server/index.js",
+    "build": "node scripts/build-client.mjs",
+    "build:prototype": "node scripts/build-client.mjs --prototype build/anyday-quote-studio.html",
+    "seed": "python3 scripts/build_library.py sources/Pricing_Calculator_Anyday_WebOps_Implementation.xlsx shared/library-default.json && python3 scripts/extract_examples.py sources sources/examples-raw.json && node scripts/build_seed.mjs",
+    "postinstall": "node scripts/build-client.mjs"
+  },
+  "author": "Anyday Inc.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {
+    "@fontsource/instrument-serif": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/manrope": "^5.3.0",
+    "cheerio": "^1.2.0",
+    "esbuild": "0.28.2",
+    "express": "^4.22.3",
+    "htm": "^3.1.1",
+    "playwright-core": "1.56.0",
+    "preact": "^11.0.0",
+    "undici": "^6.29.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "private": "true"
+}
