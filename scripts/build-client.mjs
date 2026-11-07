@@ -24,6 +24,7 @@ const lorien = dataUri('public/assets/fonts/md-lorien-regular.woff2', 'font/woff
 let css = fs.readFileSync(path.join(root, 'build/proto/app.css'), 'utf8').replace(/@font-face\{[^}]*\}/g, '');
 css = `@font-face{font-family:'MD Lorien';font-weight:400;font-style:normal;src:url(${lorien}) format('woff2');font-display:swap}` + css;
 const logoWhite = dataUri('public/assets/anyday-logo-white.png', 'image/png');
+const logoDark = dataUri('public/assets/anyday-logo.png', 'image/png');
 const mark = dataUri('public/assets/anyday-mark.png', 'image/png');
 const seed = {
   library: JSON.parse(fs.readFileSync(path.join(root, 'shared/library-default.json'), 'utf8')),
@@ -36,7 +37,7 @@ const page = `<title>Anyday Quote Studio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="${fonts}">
 <style>${css}</style>
 <div id="app"><div style="padding:40px;font-family:Inter,system-ui,sans-serif">Loading Anyday Quote Studio…</div></div>
-<script>window.__LOGO_WHITE__=${JSON.stringify(logoWhite)};window.__MARK_URL__=${JSON.stringify(mark)};window.__LORIEN__=${JSON.stringify(lorien)};window.__FONT_CSS__=${JSON.stringify(fonts)};window.__SEED__=${JSON.stringify(seed).replace(/</g, '\\u003c')};</script>
+<script>window.__LOGO_WHITE__=${JSON.stringify(logoWhite)};window.__LOGO_DARK__=${JSON.stringify(logoDark)};window.__MARK_URL__=${JSON.stringify(mark)};window.__LORIEN__=${JSON.stringify(lorien)};window.__FONT_CSS__=${JSON.stringify(fonts)};window.__SEED__=${JSON.stringify(seed).replace(/</g, '\\u003c')};</script>
 <script type="module">${js.replace(/<\/script/gi, '<\\/script')}</script>
 `;
 fs.mkdirSync(path.dirname(out), { recursive: true });

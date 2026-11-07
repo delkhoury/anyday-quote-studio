@@ -172,3 +172,24 @@ test('foundations: seeded, listed, created, edited with conflict detection, dupl
   const summary = (await api('GET', '/api/quotes')).body.find(q => q.id === sub.id);
   assert.equal(summary.foundation, 'Clinic Platform'); assert.equal(summary.type, 'foundation_site');
 });
+
+test('team and internal plan: team saved with validation, plan CSV and PDF carry no prices', async () => {
+  const empty = (await api('GET', '/api/team')).body;
+  assert.deepEqual(empty.people, []);
+  const bad = await api('PUT', '/api/team', { team: { people: [{ id: 'a', name: '', role: 'chef', hoursPerWeek: 200 }] } });
+  assert.equal(bad.status, 400);
+  const team = (await api('PUT', '/api/team', { team: { people: [{ id: 'dev1', name: 'Marco', role: 'dev', hoursPerWeek: 40 }, { id: 'pm1', name: 'Jo', role: 'pm', hoursPerWeek: 20 }] }, baseUpdatedAt: empty.updatedAt })).body;
+  assert.equal(team.people.length, 2);
+  assert.equal((await api('PUT', '/api/team', { team, baseUpdatedAt: 'stale' })).status, 409);
+  const q = (await api('GET', '/api/quotes/example-openssf')).body;
+  q.plan = { kickoff: '2026-11-16', rows: { MIG_L1_PAGE: { effort: { perUnit: { dev: 3, pm: 0.5 } }, assign: { dev: ['dev1'], pm: ['pm1'] } } }, extra: [], people: {}, notes: '' };
+  await api('PUT', `/api/quotes/${q.id}`, { quote: q });
+  const csv = (await api('GET', `/api/quotes/${q.id}/plan.csv`)).body.toString();
+  assert.match(csv, /Level 1/); assert.match(csv, /Marco; Jo/); assert.ok(!csv.includes('$'));
+  const html = (await api('GET', `/api/quotes/${q.id}/plan.html`)).body.toString().replace(/<style>[\s\S]*?<\/style>/, '');
+  assert.ok(!/\$\s?\d/.test(html)); assert.match(html, /Internal delivery plan/);
+  if (pdfAvailable()) {
+    const pdf = await api('POST', `/api/quotes/${q.id}/plan.pdf`);
+    assert.equal(pdf.status, 200); assert.equal(pdf.body.subarray(0, 4).toString(), '%PDF');
+  }
+});

@@ -2,6 +2,7 @@
 // changes never alter an existing quote unless the user explicitly applies current pricing.
 
 import { diffSnapshots } from './pricing.js';
+import { emptyPlan } from './plan.js';
 
 export const QUOTE_SCHEMA_VERSION = 2;
 
@@ -134,6 +135,7 @@ export function newQuote(library, foundation, { client = '', project = '', url =
     siteGroups: defaultSiteGroups(type, url),
     inventory: { source: null, entries: [], scans: [], templates: [], media: { discovered: null, imageSitemap: null, verified: null } },
     proposal: { ...defaultProposal(), assumptions: typeAssumptions(type, fsnap?.name) },
+    plan: emptyPlan(),
     provisional: [],
     history: [{ at: now, kind: 'created', libraryVersion: library.version, type, foundation: fsnap?.id || null }],
   };

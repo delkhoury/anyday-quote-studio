@@ -8,6 +8,7 @@ import { ReviewStep } from './review.js';
 import { ScopeStep } from './scope.js';
 import { InvestmentStep } from './investment.js';
 import { SitesStep } from './sites.js';
+import { PlanStep } from './plan.js';
 import { quoteTypeOf, quoteTypes } from '../../shared/quote.js';
 
 // The steps depend on the quote type: portfolios get a Sites step and analyse samples.
@@ -19,6 +20,7 @@ export function stepsFor(quote) {
     { id: 'analyse', t: t.sitesStep ? 'Analyse samples' : 'Analyse website', s: 'Sitemaps, pages and media' },
     { id: 'review', t: 'Review', s: t.sitesStep ? 'Inventory and portfolio totals' : 'Confirm classifications' },
     { id: 'scope', t: 'Scope', s: 'Implementation, design, migration' },
+    { id: 'plan', t: 'Plan', s: 'Internal: hours, team, timeline' },
     { id: 'investment', t: 'Investment', s: 'Proposal preview and export' },
   ];
 }
@@ -58,16 +60,16 @@ function useQuote(api, id) {
   return { quote, update, replace, status, error, setError, flush };
 }
 
-export function QuoteEditor({ api, id, step: stepIn = 'setup', health, library, go }) {
+export function QuoteEditor({ api, id, step: stepIn = 'setup', health, library, setLibrary, go }) {
   const { quote, update, replace, status, error, setError, flush } = useQuote(api, id);
   const calc = useMemo(() => { if (!quote) return null; try { return calculateQuote(quote); } catch (e) { return { error: e.message }; } }, [quote]);
   if (error && !quote) return html`<div class="banner danger">${error}</div>`;
   if (!quote || !calc) return html`<div class="empty">Loading quote…</div>`;
-  const ctx = { api, quote, update, replace, calc, health, library, go, flush };
+  const ctx = { api, quote, update, replace, calc, health, library, setLibrary, go, flush };
   const STEPS = stepsFor(quote);
   const step = stepIn === 'details' ? 'setup' : (STEPS.some(x => x.id === stepIn) ? stepIn : 'setup');
   const idx = STEPS.findIndex(s => s.id === step);
-  const Step = { setup: SetupStep, sites: SitesStep, analyse: AnalyseStep, review: ReviewStep, scope: ScopeStep, investment: InvestmentStep }[step] || SetupStep;
+  const Step = { setup: SetupStep, sites: SitesStep, analyse: AnalyseStep, review: ReviewStep, scope: ScopeStep, plan: PlanStep, investment: InvestmentStep }[step] || SetupStep;
   return html`
     <div class="page-head">
       <div>
@@ -87,7 +89,7 @@ export function QuoteEditor({ api, id, step: stepIn = 'setup', health, library, 
     <nav class="stepper" aria-label="Quote steps" style=${`grid-template-columns:repeat(${STEPS.length},1fr)`}>
       ${STEPS.map((s, i) => html`<a href=${`#/quote/${quote.id}/${s.id}`} class=${i === idx ? 'active' : ''} aria-current=${i === idx ? 'step' : null}><div class="n">${i + 1}</div><div class="t">${s.t}</div><div class="s">${s.s}</div></a>`)}
     </nav>
-    ${step === 'investment' ? html`<${Step} ...${ctx} />` : html`<div class="layout-rail"><div class="grow"><${Step} ...${ctx} /></div><${Rail} calc=${calc} quote=${quote} go=${go} /></div>`}
+    ${step === 'investment' || step === 'plan' ? html`<${Step} ...${ctx} />` : html`<div class="layout-rail"><div class="grow"><${Step} ...${ctx} /></div><${Rail} calc=${calc} quote=${quote} go=${go} /></div>`}
     <div class="spread" style="margin-top:22px">
       ${idx > 0 ? html`<a class="btn" href=${`#/quote/${quote.id}/${STEPS[idx - 1].id}`}>← ${STEPS[idx - 1].t}</a>` : html`<span></span>`}
       ${idx < STEPS.length - 1 ? html`<a class="btn dark" href=${`#/quote/${quote.id}/${STEPS[idx + 1].id}`}>${STEPS[idx + 1].t} →</a>` : null}

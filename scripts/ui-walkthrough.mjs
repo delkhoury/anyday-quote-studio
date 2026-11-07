@@ -5,7 +5,7 @@ import fs from 'node:fs';
 const [base = 'http://127.0.0.1:4311', out = '/tmp/ui', ...ids] = process.argv.slice(2);
 const qids = ids.length ? ids : ['example-pytorch'];
 fs.mkdirSync(out, { recursive: true });
-const exe = process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const exe = process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome';
 const b = await chromium.launch({ executablePath: exe });
 const page = await b.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];

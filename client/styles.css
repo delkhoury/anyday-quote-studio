@@ -264,3 +264,16 @@ table.t th { background: transparent; color: var(--muted); border-bottom: 1px so
 .type-card b { font-size: 14px; }
 .type-card.on { border-color: var(--line-strong); box-shadow: inset 0 3px 0 var(--accent); }
 .type-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* internal plan */
+.gantt-ui { border-top: 1px solid var(--line-strong); margin-top: 8px; }
+.gantt-ui .g-row { display: grid; grid-template-columns: minmax(140px, 260px) 1fr; align-items: center; height: 22px; border-bottom: 1px solid var(--line); }
+.gantt-ui .g-head { height: 24px; }
+.gantt-ui .g-head .g-track span { position: absolute; top: 5px; font-size: 10.5px; color: var(--muted); transform: translateX(2px); }
+.gantt-ui .g-label { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
+.gantt-ui .g-track { position: relative; height: 100%; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100% / var(--weeks) - 1px), var(--line) calc(100% / var(--weeks) - 1px), var(--line) calc(100% / var(--weeks))); }
+.gantt-ui .g-track i { position: absolute; top: 5px; bottom: 5px; border-radius: 1px; }
+.gantt-ui .g-phase { font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); padding: 10px 0 3px; }
+table.plan-t tr.ph td { font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); background: var(--surface-2); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .gantt-ui .g-track i[style*="#000000"] { background: #E6E6E6 !important; } }
+:root[data-theme="dark"] .gantt-ui .g-track i[style*="#000000"] { background: #E6E6E6 !important; }

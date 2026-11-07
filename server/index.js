@@ -13,6 +13,8 @@ import { renderProposal } from '../shared/proposal.js';
 import { mergeScan, inventoryCsv, portfolioSummary } from '../shared/inventory.js';
 import { applyLibraryPricing, applyFoundation, quoteTypeOf } from '../shared/quote.js';
 import { migrateLibrary } from '../shared/migrate.js';
+import { schedulePlan, planCsv } from '../shared/plan.js';
+import { renderPlanDoc } from '../shared/plan-doc.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -64,6 +66,10 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
   app.post('/api/library/import', h((req, res) => res.json(store.saveLibrary(migrateLibrary(req.body.library || {}, store.getLibrary())))));
   app.get('/api/library/versions', h((req, res) => res.json(store.listLibraryVersions())));
+
+  // ---- team: people who deliver the work (internal planning) ----------------
+  app.get('/api/team', h((req, res) => res.json(store.getTeam())));
+  app.put('/api/team', h((req, res) => res.json(store.saveTeam(req.body.team, { baseUpdatedAt: req.body.baseUpdatedAt }))));
 
   // ---- foundations: reusable platforms a quote can build on -----------------
   app.get('/api/foundations', h((req, res) => res.json(store.listFoundations())));
@@ -144,6 +150,26 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `${req.query.inline ? 'inline' : 'attachment'}; filename="${q.number || 'quote'}-${mode === 'final' ? 'proposal' : 'draft'}.pdf"`);
+    res.send(pdf);
+  }));
+
+  // ---- internal delivery plan: price free, for the delivery team -----------
+  const planFor = q => { const team = store.getTeam(); return { team, sched: schedulePlan(q, { team, library: store.getLibrary() }) }; };
+  app.get('/api/quotes/:id/plan.html', h((req, res) => {
+    const q = store.getQuote(req.params.id); const { team, sched } = planFor(q);
+    res.type('html').send(renderPlanDoc(q, sched, team, { assetBase: '/assets', markDataUri: mark, screen: true }));
+  }));
+  app.get('/api/quotes/:id/plan.csv', h((req, res) => {
+    const q = store.getQuote(req.params.id); const { team, sched } = planFor(q);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${q.number || q.id}-internal-plan.csv"`);
+    res.send(planCsv(q, sched, team));
+  }));
+  app.post('/api/quotes/:id/plan.pdf', h(async (req, res) => {
+    const q = store.getQuote(req.params.id); const { team, sched } = planFor(q);
+    const pdf = await htmlToPdf(renderPlanDoc(q, sched, team, { assetBase: PDF_ASSET_BASE, markDataUri: mark }), { publicDir: PUBLIC });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${q.number || 'quote'}-internal-plan.pdf"`);
     res.send(pdf);
   }));
 

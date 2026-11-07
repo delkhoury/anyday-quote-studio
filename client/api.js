@@ -4,6 +4,7 @@ import { newQuote, duplicateQuote, applyLibraryPricing, applyFoundation, validat
 import { migrateQuote, migrateLibrary } from '../shared/migrate.js';
 import { calculateQuote } from '../shared/pricing.js';
 import { inventoryCsv, portfolioSummary } from '../shared/inventory.js';
+import { emptyTeam, schedulePlan, planCsv } from '../shared/plan.js';
 
 async function j(res) {
   const body = await res.json().catch(() => ({}));
@@ -21,6 +22,14 @@ export class ServerApi {
   library() { return fetch('/api/library').then(j); }
   saveLibrary(library, baseUpdatedAt) { return send('PUT', '/api/library', { library, baseUpdatedAt }); }
   importLibrary(library) { return send('POST', '/api/library/import', { library }); }
+  team() { return fetch('/api/team').then(j); }
+  saveTeam(team, baseUpdatedAt) { return send('PUT', '/api/team', { team, baseUpdatedAt }); }
+  async planPdf(id) {
+    const res = await fetch(`/api/quotes/${encodeURIComponent(id)}/plan.pdf`, { method: 'POST' });
+    if (!res.ok) return j(res);
+    return res.blob();
+  }
+  exportPlanCsv(q) { const a = document.createElement('a'); a.href = `/api/quotes/${encodeURIComponent(q.id)}/plan.csv`; a.download = `${q.number}-internal-plan.csv`; document.body.appendChild(a); a.click(); a.remove(); }
   foundations() { return fetch('/api/foundations').then(j); }
   foundation(id) { return fetch(`/api/foundations/${encodeURIComponent(id)}`).then(j); }
   createFoundation(fields) { return send('POST', '/api/foundations', fields); }
@@ -53,6 +62,7 @@ export class MemoryApi {
     this.mode = 'prototype';
     this.lib = JSON.parse(JSON.stringify(seed.library));
     this.fs = new Map((seed.foundations || []).map(f => [f.id, JSON.parse(JSON.stringify(f))]));
+    this.tm = seed.team ? JSON.parse(JSON.stringify(seed.team)) : emptyTeam();
     this.qs = new Map(seed.quotes.map(q => [q.id, migrateQuote(q, this.lib)]));
     this.n = seed.quotes.length + 1;
   }
@@ -67,6 +77,13 @@ export class MemoryApi {
     this.lib = { ...library, updatedAt: new Date().toISOString() }; return this.library();
   }
   async importLibrary(library) { return this.saveLibrary(migrateLibrary(library, this.lib)); }
+  async team() { return JSON.parse(JSON.stringify(this.tm)); }
+  async saveTeam(team, base) {
+    if (base && base !== this.tm.updatedAt) throw Object.assign(new Error('The team changed since you opened it'), { status: 409 });
+    this.tm = { schemaVersion: 1, people: JSON.parse(JSON.stringify(team.people)), updatedAt: new Date().toISOString() }; return this.team();
+  }
+  async planPdf() { throw new Error('PDF export needs the Anyday Quote Studio server. Use the CSV here, or the preview.'); }
+  exportPlanCsv(q) { const cur = this.qs.get(q.id) || q; download(`${q.number}-internal-plan.csv`, planCsv(cur, schedulePlan(cur, { team: this.tm, library: this.lib }), this.tm), 'text/csv'); }
   async foundations() { return [...this.fs.values()].map(f => JSON.parse(JSON.stringify(f))).sort((a, b) => (a.archived - b.archived) || a.name.localeCompare(b.name)); }
   async foundation(id) { const f = this.fs.get(id); if (!f) throw new Error('Foundation not found'); return JSON.parse(JSON.stringify(f)); }
   async createFoundation(fields) {

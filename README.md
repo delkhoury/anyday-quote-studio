@@ -58,6 +58,7 @@ To deploy to **quotes.anyday.inc** on Render, follow **DEPLOY.md**. The `render.
 Everything lives as plain JSON under `DATA_DIR`:
 
 * `library.json`: the current Pricing Library. Every save archives the previous version in `library-versions/`.
+* `team.json`: the delivery team used by the Plan step.
 * `foundations/<id>.json`: one file per foundation (components, content models, integrations, capabilities provided, notes). Every save archives the previous version in `foundation-versions/`.
 * `backups/`: copies taken before an automatic data upgrade (i.e. `pre-v2-<time>/`).
 * `quotes/<id>.json`: one file per quote, including its own pricing snapshot.
@@ -87,11 +88,16 @@ Writes are atomic (write to a temporary file, flush, rename). Saving a quote tha
    * choose whether a design amount is an additional charge or an allocation from an existing fee,
    * offer additional volume as an optional addition, priced against the scope already included.
    In **WebOps Base + Design**, when the quote uses a foundation, its panel sets each component to Brand, Redesign, Extend, New or Not used. **Component design** counts each redesigned component once; on a new platform it also counts every reusable component being built.
-7. **Investment.** **Suggest an introduction** writes a starting paragraph for the quote type. Edit the introduction, assumptions, exclusions, payment terms, validity and (optionally) timeline. The live preview updates as you type.
+7. **Plan (internal).** Hours by role for every deliverable, who does the work, and the timeline. Open a row to enter fixed hours and hours per unit, assign people from the Team, set the phase and what it waits on. Set a kickoff date for calendar dates (time off then applies). **Save as library defaults** stores the hours so the next quote starts with them. **Download internal plan** exports a PDF and CSV with no prices or client proposal copy, for the delivery team.
+8. **Investment.** **Suggest an introduction** writes a starting paragraph for the quote type. Edit the introduction, assumptions, exclusions, payment terms, validity and (optionally) timeline. The live preview updates as you type.
 
 ### Edit library prices
 
 **Pricing Library** lists every item with its section, pricing rule and status. Click the pencil to edit names, plain language descriptions, unit prices, units, batch sizes and prices, volume tiers, proposal section, dependencies, design flag and optional availability. **Add item** creates new items, including design items. **Sections and mapping** shows the section for every item. **Quote type presets** sets which lines each quote type starts with.
+
+### Team
+
+**Team** lists the people who deliver the work: name, role (designer, developer, project manager, technical lead), hours a week for client work, and time off. Each quote's Plan step assigns them and times the work from their hours. On a quote you can also lower the share of someone's week spent on that project.
 
 ### Foundations
 

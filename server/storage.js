@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { newQuote, duplicateQuote, validateQuoteShape, validateLibraryShape, cryptoId, emptyFoundation, quoteTypes } from '../shared/quote.js';
 import { migrateQuote, migrateLibrary, catalogueToFoundation } from '../shared/migrate.js';
+import { emptyTeam, ROLE_IDS } from '../shared/plan.js';
 
 const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 export class NotFound extends Error { constructor(m) { super(m); this.status = 404; } }
@@ -23,6 +24,7 @@ export function createStore({ dataDir, root }) {
   const libFile = path.join(dataDir, 'library.json');
   const legacyCatFile = path.join(dataDir, 'aaif-catalogue.json');
   const counterFile = path.join(dataDir, 'counter.json');
+  const teamFile = path.join(dataDir, 'team.json');
   const defaults = readJson(path.join(root, 'shared/library-default.json'));
   const firstRun = !fs.existsSync(libFile);
   migrateDataDir({ dataDir, dirs, libFile, legacyCatFile, defaults });
@@ -77,6 +79,24 @@ export function createStore({ dataDir, root }) {
   return {
     dataDir,
     getLibrary: () => readJson(libFile),
+    getTeam: () => (fs.existsSync(teamFile) ? readJson(teamFile) : emptyTeam()),
+    saveTeam(team, { baseUpdatedAt } = {}) {
+      if (!Array.isArray(team?.people)) throw new Invalid('Team needs a people list');
+      const ids = new Set(); const errs = [];
+      for (const p of team.people) {
+        if (!p.id || !ID_RE.test(p.id)) errs.push('Every person needs an id');
+        else if (ids.has(p.id)) errs.push(`Duplicate person ${p.id}`);
+        ids.add(p.id);
+        if (!String(p.name || '').trim()) errs.push('Every person needs a name');
+        if (!ROLE_IDS.includes(p.role)) errs.push(`${p.name || p.id}: unknown role`);
+        if (!(Number(p.hoursPerWeek) >= 0 && Number(p.hoursPerWeek) <= 80)) errs.push(`${p.name || p.id}: hours per week must be 0 to 80`);
+      }
+      if (errs.length) throw new Invalid('Team is not valid', errs);
+      const cur = fs.existsSync(teamFile) ? readJson(teamFile) : null;
+      if (cur && baseUpdatedAt && cur.updatedAt !== baseUpdatedAt) throw new Conflict('The team changed since you opened it. Reload and reapply your edits.', cur);
+      const next = { schemaVersion: 1, people: team.people, updatedAt: new Date().toISOString() };
+      atomicWriteJson(teamFile, next); return next;
+    },
     listFoundations() {
       return fs.readdirSync(dirs.foundations).filter(f => f.endsWith('.json')).map(f => { try { return readJson(path.join(dirs.foundations, f)); } catch { return null; } })
         .filter(Boolean).sort((a, b) => (a.archived - b.archived) || a.name.localeCompare(b.name));

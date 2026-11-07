@@ -1,7 +1,7 @@
 // UI walkthrough of a live scan: create quote, analyse, merge, review.
 import { chromium } from 'playwright-core';
 const [base, site, out] = process.argv.slice(2);
-const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome' });
 const page = await b.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = []; page.on('pageerror', e => errors.push(e.message));
 await page.goto(base + '/#/quotes');

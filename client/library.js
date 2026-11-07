@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'preact/hooks';
 import { html, Badge, Field, NumInput, TextInput, Modal, Seg, toast, askConfirm } from './ui.js';
 import { describePricing } from '../shared/pricing.js';
 import { validateLibraryShape, quoteTypes } from '../shared/quote.js';
+import { ROLES, PHASES, defaultPhase, effortIsSet } from '../shared/plan.js';
 import { fmtDate, toCents, centsToInput, fmtMoney } from '../shared/format.js';
 import { download, readFileText } from './api.js';
 
@@ -70,15 +71,16 @@ export function LibraryScreen({ api, onSaved }) {
         <label class="field" style="display:flex;gap:6px;align-items:center"><span style="margin:0">Version</span><${TextInput} cls="input" value=${lib.version} onChange=${v => setLib({ ...lib, version: v })} /></label>
         <button class="btn" onClick=${() => setAdding(true)}>Add item</button></div></div>
       <div class="card flush"><div class="scroll-x"><table class="t">
-        <thead><tr><th>Item</th><th>Section</th><th>Pricing</th><th>Status</th><th>Optional</th><th></th></tr></thead>
+        <thead><tr><th>Item</th><th>Section</th><th>Pricing</th><th>Status</th><th>Hours</th><th>Optional</th><th></th></tr></thead>
         <tbody>${items.map(i => html`
           <tr key=${i.id}><td><b>${i.name}</b>${i.isDesign ? html` <${Badge} kind="accent">Design<//>` : null}<div class="tiny muted">${i.id}${i.keys?.length > 1 ? ` · combines ${i.keys.join(', ')}` : ''}</div></td>
             <td class="small">${secName(i.section)}${i.section === 'base' ? html`<div class="tiny muted">${i.isDesign ? 'Design' : 'Implementation'}</div>` : null}${i.phase && ((i.phase === 'Migration' && i.section === 'extensions')) ? html`<div class="tiny muted">Phase says Migration; mapped by calculator tab</div>` : null}</td>
             <td class="small" style="max-width:360px">${describePricing(i.pricing)}</td>
             <td>${i.pricing.status === 'starting_at' ? html`<${Badge} kind="warn">Starting at<//>` : i.pricing.status === 'unpriced' ? html`<${Badge} kind="danger">Price needed<//>` : html`<${Badge} kind="ok">Confirmed<//>`}</td>
+            <td>${effortIsSet(i.effort) ? html`<${Badge} kind="ok">Set<//>` : html`<${Badge}>Hours needed<//>`}</td>
             <td><input type="checkbox" checked=${i.optionalAvailable !== false} aria-label=${'Available as optional addition: ' + i.name} onChange=${e => setItem(i.id, { optionalAvailable: e.target.checked })} /></td>
             <td><button class="icon-btn" aria-label=${'Edit ' + i.name} aria-expanded=${open === i.id} onClick=${() => setOpen(open === i.id ? null : i.id)}>${open === i.id ? '−' : '✎'}</button></td></tr>
-          ${open === i.id ? html`<tr><td colspan="6" style="background:var(--surface-2)"><${ItemEditor} item=${i} lib=${lib} setItem=${setItem} setPricing=${setPricing} remove=${async () => { if (await askConfirm(`Remove ${i.name} from the library? Existing quotes keep their own copy.`, 'Remove item')) { setLib(l => ({ ...l, items: l.items.filter(x => x.id !== i.id) })); setOpen(null); } }} /></td></tr>` : null}`)}
+          ${open === i.id ? html`<tr><td colspan="7" style="background:var(--surface-2)"><${ItemEditor} item=${i} lib=${lib} setItem=${setItem} setPricing=${setPricing} remove=${async () => { if (await askConfirm(`Remove ${i.name} from the library? Existing quotes keep their own copy.`, 'Remove item')) { setLib(l => ({ ...l, items: l.items.filter(x => x.id !== i.id) })); setOpen(null); } }} /></td></tr>` : null}`)}
         </tbody></table></div></div>` : null}
 
     ${tab === 'sections' ? html`<div class="card"><h2>Proposal sections</h2>
@@ -120,6 +122,7 @@ function ItemEditor({ item: i, lib, setItem, setPricing, remove }) {
         ${(i.dependsOn || []).map((g, gi) => html`<div class="row" style="margin-bottom:4px"><select multiple class="input" style="height:74px" aria-label="Dependency group" onChange=${e => { const sel = [...e.target.selectedOptions].map(o => o.value); const d = [...i.dependsOn]; d[gi] = sel; setItem(i.id, { dependsOn: d.filter(x => x.length) }); }}>${all.map(x => html`<option value=${x.id} selected=${g.includes(x.id)}>${x.name}</option>`)}</select><button class="icon-btn" aria-label="Remove group" onClick=${() => setItem(i.id, { dependsOn: i.dependsOn.filter((_, j) => j !== gi) })}>×</button></div>`)}
         <button class="btn small" onClick=${() => setItem(i.id, { dependsOn: [...(i.dependsOn || []), []] })}>Add dependency group</button><//>
       <${Field} label="Included work and notes (internal)"><${TextInput} multiline rows=${2} value=${i.sourceNotes} onChange=${v => setItem(i.id, { sourceNotes: v })} /><//>
+      <${EffortEditor} i=${i} setItem=${setItem} />
       <label class="check"><input type="checkbox" checked=${i.optionalAvailable !== false} onChange=${e => setItem(i.id, { optionalAvailable: e.target.checked })} /> Available as an optional addition</label>
     </div>
     <div class="stack" style="gap:10px">
@@ -167,6 +170,26 @@ function AddItem({ lib, onClose, onAdd }) {
       <div class="grid2"><${Field} label="Unit price (blank = price needed)"><input class="input" value=${f.price} onInput=${e => setF({ ...f, price: e.target.value })} /><//><${Field} label="Unit"><input class="input" value=${f.unit} onInput=${e => setF({ ...f, unit: e.target.value })} /><//></div>
       <div class="tiny muted">You can switch to batch, tier or block pricing in the item editor after adding.</div>
     </div><//>`;
+}
+
+// Effort: internal only. Default hours by role, used by each quote's Plan step. Never shown to clients.
+function EffortEditor({ i, setItem }) {
+  const e = i.effort || {};
+  const set = patch => setItem(i.id, { effort: { ...e, ...patch } });
+  const setH = (kind, role, v) => set({ [kind]: { ...(e[kind] || {}), [role]: v } });
+  const unit = i.pricing.qtyUnit || 'unit';
+  const qtyBased = i.pricing.model !== 'included';
+  return html`<div class="card" style="background:var(--surface);margin-top:4px">
+    <div class="spread"><div class="caps">Effort (internal)</div>${effortIsSet(e) ? html`<${Badge} kind="ok">Hours set<//>` : html`<${Badge}>Hours needed<//>`}</div>
+    <p class="tiny muted" style="margin:4px 0 8px">Default hours for the Plan step. Project managers can also fill these in from a quote and save them as defaults. Never shown to clients.</p>
+    <div class="grid2"><${Field} label="Internal name"><${TextInput} value=${e.internalName || ''} placeholder=${i.name} onChange=${v => set({ internalName: v })} /><//>
+      <${Field} label="Phase"><select class="input" value=${e.phase || ''} onChange=${ev => set({ phase: ev.target.value })}><option value="">${defaultPhase(i)} (default)</option>${PHASES.map(ph => html`<option value=${ph}>${ph}</option>`)}</select><//></div>
+    <${Field} label="Done when"><${TextInput} value=${e.doneWhen || ''} placeholder="i.e. Approved in Figma and built in Storybook" onChange=${v => set({ doneWhen: v })} /><//>
+    <table class="t" style="margin-top:8px"><thead><tr><th>Role</th><th>Fixed hours</th>${qtyBased ? html`<th>Hours per ${unit}</th>` : null}</tr></thead><tbody>
+      ${ROLES.map(r => html`<tr><td class="small">${r.label}</td>
+        <td><${NumInput} value=${e.setup?.[r.id] ?? null} ariaLabel=${`${r.label} fixed hours`} step=${0.25} onChange=${v => setH('setup', r.id, v)} /></td>
+        ${qtyBased ? html`<td><${NumInput} value=${e.perUnit?.[r.id] ?? null} ariaLabel=${`${r.label} hours per ${unit}`} step=${0.25} onChange=${v => setH('perUnit', r.id, v)} /></td>` : null}</tr>`)}
+    </tbody></table></div>`;
 }
 
 // What each quote type starts with. Presets only shape a new quote; Anyday edits every line afterwards.

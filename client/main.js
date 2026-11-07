@@ -5,6 +5,7 @@ import { ServerApi, MemoryApi, download, readFileText } from './api.js';
 import { QuoteEditor } from './quote/editor.js';
 import { LibraryScreen } from './library.js';
 import { FoundationsScreen, FoundationEditor } from './foundations.js';
+import { TeamScreen } from './team.js';
 import { quoteTypes } from '../shared/quote.js';
 import { fmtMoney, fmtDate } from '../shared/format.js';
 import './styles.css';
@@ -25,7 +26,7 @@ function App({ api, health, user }) {
   return html`
     <header class="topbar"><div class="topbar-inner">
       <a class="brand" href="#/quotes"><img src=${window.__MARK_URL__ || '/assets/anyday-mark.png'} alt="" /><span class="word">ANYDAY</span><span class="app">Quote Studio</span></a>
-      <nav class="nav" aria-label="Main"><a href="#/quotes" class=${route === 'quotes' || route === 'quote' ? 'active' : ''}>Quotes</a><a href="#/library" class=${route === 'library' ? 'active' : ''}>Pricing Library</a><a href="#/foundations" class=${route === 'foundations' || route === 'foundation' ? 'active' : ''}>Foundations</a></nav>
+      <nav class="nav" aria-label="Main"><a href="#/quotes" class=${route === 'quotes' || route === 'quote' ? 'active' : ''}>Quotes</a><a href="#/library" class=${route === 'library' ? 'active' : ''}>Pricing Library</a><a href="#/foundations" class=${route === 'foundations' || route === 'foundation' ? 'active' : ''}>Foundations</a><a href="#/team" class=${route === 'team' ? 'active' : ''}>Team</a></nav>
       <div class="right">${health.mode === 'prototype' ? html`<${Badge} kind="warn" title="No server: data is in memory only">Prototype · in memory<//>` : html`<${Badge} kind="ok">Server · saved to disk<//>`}
         ${user ? html`<span class="user small" title=${user.email}>${user.name || user.email}</span><button class="btn small" onClick=${() => api.logout()}>Sign out</button>` : null}
         <button class="btn small" aria-label="Toggle light and dark theme" onClick=${() => { const r = document.documentElement; const dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark ? 'light' : 'dark'; }}>Theme</button></div>
@@ -34,8 +35,9 @@ function App({ api, health, user }) {
       ${health.mode === 'prototype' ? html`<div class="banner warn" style="margin-bottom:16px"><b>Interface prototype.</b> Quotes and library edits live in this browser tab only and are lost on reload, so use Export to keep them and Import to bring them back. Website scanning and PDF export need the deployable Anyday Quote Studio server; they are disabled here rather than simulated.</div>` : null}
       ${route === 'library' ? html`<${LibraryScreen} api=${api} onSaved=${setLibrary} />`
         : route === 'foundations' ? html`<${FoundationsScreen} api=${api} go=${go} />`
+        : route === 'team' ? html`<${TeamScreen} api=${api} />`
         : route === 'foundation' && parts[1] ? html`<${FoundationEditor} key=${parts[1]} api=${api} id=${parts[1]} library=${library} go=${go} />`
-        : route === 'quote' && parts[1] ? html`<${QuoteEditor} key=${parts[1]} api=${api} id=${parts[1]} step=${parts[2] || 'setup'} health=${health} library=${library} go=${go} />`
+        : route === 'quote' && parts[1] ? html`<${QuoteEditor} key=${parts[1]} api=${api} id=${parts[1]} step=${parts[2] || 'setup'} health=${health} library=${library} setLibrary=${setLibrary} go=${go} />`
         : html`<${QuotesScreen} api=${api} library=${library} />`}
     </main>
     <${Toaster} /><${Dialogs} />`;
