@@ -4,7 +4,10 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createStore, Invalid } from './storage.js';
-import { authConfig, installAuth } from './auth.js';
+import { authConfig, installAuth, isAdmin } from './auth.js';
+import { clockifyConfig, clockifyClient, syncTeamFromClockify, entriesFromClockify } from './clockify.js';
+import { entriesFromCsv, computeBaselines } from '../shared/baselines.js';
+import { computeMargin } from '../shared/margin.js';
 import { loginPage } from './login-page.js';
 import { htmlToPdf, pdfAvailable, markDataUri, PDF_ASSET_BASE, closeBrowser } from './pdf.js';
 import { runScan } from './scanner/scan.js';
@@ -19,7 +22,7 @@ import { renderPlanDoc } from '../shared/plan-doc.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = path.join(ROOT, 'public');
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), scanOptions = {}, auth = authConfig(), fetchImpl } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), scanOptions = {}, auth = authConfig(), fetchImpl, clockify = clockifyConfig(), clockifyFetch } = {}) {
   const store = createStore({ dataDir, root: ROOT });
   const app = express();
   app.disable('x-powered-by');
@@ -54,7 +57,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     };
   };
 
-  app.get('/api/health', (req, res) => res.json({ ok: true, mode: 'server', pdf: pdfAvailable(), scanner: true, auth: auth.enabled }));
+  app.get('/api/health', (req, res) => res.json({ ok: true, mode: 'server', pdf: pdfAvailable(), scanner: true, auth: auth.enabled, clockify: clockify.enabled }));
 
   // ---- library -------------------------------------------------------------
   app.get('/api/library', h((req, res) => res.json(store.getLibrary())));
@@ -68,8 +71,35 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   app.get('/api/library/versions', h((req, res) => res.json(store.listLibraryVersions())));
 
   // ---- team: people who deliver the work (internal planning) ----------------
-  app.get('/api/team', h((req, res) => res.json(store.getTeam())));
-  app.put('/api/team', h((req, res) => res.json(store.saveTeam(req.body.team, { baseUpdatedAt: req.body.baseUpdatedAt }))));
+  const admin = req => isAdmin(req.user, auth);
+  const requireAdmin = req => { if (!admin(req)) throw Object.assign(new Error('Admins only'), { status: 403 }); };
+  const teamFor = (req, team) => (admin(req) ? team : { ...team, people: team.people.map(({ costRate, costCurrency, ...p }) => p) });
+  app.get('/api/team', h((req, res) => res.json(teamFor(req, store.getTeam()))));
+  app.put('/api/team', h((req, res) => res.json(teamFor(req, store.saveTeam(req.body.team, { baseUpdatedAt: req.body.baseUpdatedAt, keepCosts: !admin(req) })))));
+  const ck = () => { if (!clockify.enabled) throw Object.assign(new Error('Clockify is not connected. Add CLOCKIFY_API_KEY in Render, then redeploy.'), { status: 400 }); return clockifyClient({ ...clockify, ...(clockifyFetch ? { fetchImpl: clockifyFetch } : {}) }); };
+  app.post('/api/team/clockify-sync', h(async (req, res) => {
+    const cur = store.getTeam();
+    const { team, report } = await syncTeamFromClockify(ck(), cur);
+    const saved = store.saveTeam(team, { baseUpdatedAt: cur.updatedAt });
+    res.json({ team: teamFor(req, saved), report });
+  }));
+  app.get('/api/settings', h((req, res) => { requireAdmin(req); res.json(store.getSettings()); }));
+  app.put('/api/settings', h((req, res) => { requireAdmin(req); res.json(store.saveSettings(req.body || {})); }));
+  // hour baselines from logged time: proposals only; the library changes when someone saves it
+  app.post('/api/library/baselines', h(async (req, res) => {
+    const b = req.body || {};
+    const team = store.getTeam();
+    const byName = Object.fromEntries(team.people.map(p => [String(p.name).trim().toLowerCase(), p]));
+    const entries = b.source === 'csv'
+      ? entriesFromCsv(String(b.csv || ''), { roleOf: u => (byName[String(u).trim().toLowerCase()] ? { role: byName[String(u).trim().toLowerCase()].role } : null) })
+      : await entriesFromClockify(ck(), { months: Math.max(1, Math.min(24, Number(b.months) || 12)), team });
+    res.json(computeBaselines(entries, store.getLibrary()));
+  }));
+  app.get('/api/quotes/:id/margin', h((req, res) => {
+    requireAdmin(req);
+    const q = store.getQuote(req.params.id); const team = store.getTeam();
+    res.json(computeMargin(calculateQuote(q), schedulePlan(q, { team, library: store.getLibrary() }), team, store.getSettings()));
+  }));
 
   // ---- foundations: reusable platforms a quote can build on -----------------
   app.get('/api/foundations', h((req, res) => res.json(store.listFoundations())));

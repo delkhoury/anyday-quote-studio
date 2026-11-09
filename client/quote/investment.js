@@ -3,9 +3,11 @@ import { html, Badge, Field, TextInput, ListEditor, toast } from '../ui.js';
 import { renderProposal, derivedAssumptions, proposalReadiness, suggestedIntro } from '../../shared/proposal.js';
 import { askConfirm } from '../ui.js';
 import { fmtMoney } from '../../shared/format.js';
+import { schedulePlan } from '../../shared/plan.js';
+import { computeMargin } from '../../shared/margin.js';
 import { download } from '../api.js';
 
-export function InvestmentStep({ api, quote, update, calc, health, flush, go }) {
+export function InvestmentStep({ api, quote, update, calc, health, flush, go, admin, library }) {
   const pr = quote.proposal || {};
   const setP = patch => update(q => ({ ...q, proposal: { ...(q.proposal || {}), ...patch } }));
   const [view, setView] = useState('live');
@@ -44,6 +46,7 @@ export function InvestmentStep({ api, quote, update, calc, health, flush, go }) 
         ${calc.warnings.length ? html`<div class="banner warn small" style="margin-top:10px"><ul style="margin:0;padding-left:18px">${calc.warnings.map(w => html`<li>${w.message}</li>`)}</ul></div>` : null}
       </div>
 
+      ${admin ? html`<${MarginCard} api=${api} quote=${quote} calc=${calc} library=${library} />` : null}
       <div class="card stack">
         <h2>Export</h2>
         ${!health?.pdf ? html`<div class="banner warn small">${health?.mode === 'prototype' ? 'PDF export needs the Anyday Quote Studio server. The live preview works here.' : 'Chromium was not found on the server, so PDF export is unavailable. See the setup guide.'}</div>` : null}
@@ -78,5 +81,33 @@ export function InvestmentStep({ api, quote, update, calc, health, flush, go }) 
         <span class="tiny muted">${view === 'live' ? 'Same HTML and styles the PDF is printed from. Page headers, footers and page numbers appear in the PDF view.' : 'Rendered by the server exactly as exported (draft).'}</span></div>
       <div class="preview-wrap">${view === 'pdf' && pdfUrl ? html`<iframe title="PDF preview" src=${pdfUrl}></iframe>` : html`<iframe ref=${frame} title="Proposal preview" srcdoc=${htmlDoc} sandbox="allow-same-origin"></iframe>`}</div>
     </div>
+  </div>`;
+}
+
+// Admin only: anticipated gross margin from the planned hours and the team's cost rates.
+function MarginCard({ api, quote, calc, library }) {
+  const [team, setTeam] = useState(null);
+  const [settings, setSettings] = useState(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => { api.team().then(setTeam).catch(() => {}); api.settings().then(setSettings).catch(() => {}); }, []);
+  const m = useMemo(() => (team && settings ? computeMargin(calc, schedulePlan(quote, { team, library }), team, settings) : null), [quote, calc, team, settings, library]);
+  if (!m) return html`<div class="card"><div class="caps">Admin only</div><div class="small muted">Loading margin…</div></div>`;
+  const pct = v => (v === null || v === undefined ? 'n/a' : `${Math.round(v * 1000) / 10}%`);
+  const tone = v => (v === null ? '' : v * 100 < (m.target ?? 0) ? 'color:var(--danger)' : 'color:var(--ok)');
+  const worst = m.rows.filter(r => r.revenue && r.cost).sort((a, b) => a.margin - b.margin).slice(0, 8);
+  return html`<div class="card stack">
+    <div class="spread"><div><div class="caps">Admin only</div><h2 style="margin-top:2px">Gross margin</h2></div>
+      <div style="text-align:right"><div style=${`font-family:var(--display);font-size:34px;line-height:1;${tone(m.margin)}`}>${pct(m.margin)}</div><div class="tiny muted">${m.target != null ? `target ${m.target}%` : ''}</div></div></div>
+    <div class="money-row"><span>Investment${m.pending ? ' (priced items only)' : ''}</span><b class="num">${fmtMoney(m.revenue)}</b></div>
+    <div class="money-row"><span>Delivery cost · ${Math.round(m.hours).toLocaleString()} hours</span><b class="num">${fmtMoney(m.cost)}</b></div>
+    ${m.internalCost ? html`<div class="money-row sub"><span>of which internal tasks</span><span class="num">${fmtMoney(m.internalCost)}</span></div>` : null}
+    <div class="money-row"><span><b>Gross profit</b></span><b class="num">${fmtMoney(m.gp)}</b></div>
+    ${m.effectiveRate ? html`<div class="money-row sub"><span>Price per planned hour</span><span class="num">${fmtMoney(m.effectiveRate * 100)}/h</span></div>` : null}
+    ${m.bySection.map(s => html`<div class="money-row sub"><span>${s.name}</span><span class="num" style=${tone(s.margin)}>${pct(s.margin)}</span></div>`)}
+    ${m.notes.length ? html`<ul class="small" style="margin:0;padding-left:18px;color:var(--warn)">${m.notes.map(n => html`<li>${n}</li>`)}</ul>` : null}
+    ${worst.length ? html`<details class="more" open=${open} onToggle=${e => setOpen(e.target.open)}><summary class="small">Lowest margin deliverables</summary>
+      <table class="t" style="margin-top:6px"><thead><tr><th>Deliverable</th><th class="num">Price</th><th class="num">Cost</th><th class="num">Margin</th></tr></thead><tbody>
+      ${worst.map(r => html`<tr><td class="small">${r.name}</td><td class="num small">${fmtMoney(r.revenue)}</td><td class="num small">${fmtMoney(r.cost)}</td><td class="num small" style=${tone(r.margin)}>${pct(r.margin)}</td></tr>`)}</tbody></table></details>` : null}
+    <div class="tiny muted">Cost = planned hours × each person's Clockify cost rate (${m.costCurrency} at ${m.fx} USD). Hours come from the Plan step and the Pricing Library. Change rates and the target under Team.</div>
   </div>`;
 }

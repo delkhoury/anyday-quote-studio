@@ -23,9 +23,16 @@ export function authConfig(env = process.env) {
     secret: env.SESSION_SECRET || '',
     domain: (env.ALLOWED_DOMAIN || 'anyday.inc').toLowerCase(),
     emails: (env.ALLOWED_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+    admins: (env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
     publicUrl: (env.PUBLIC_URL || '').replace(/\/+$/, ''),
     secureCookies: (env.PUBLIC_URL || '').startsWith('https://'),
   };
+}
+
+// Admins see cost rates and margins. Without sign-in (local use) everyone is an admin.
+export function isAdmin(user, cfg) {
+  if (!cfg.enabled) return true;
+  return !!user?.email && (cfg.admins || []).includes(String(user.email).toLowerCase());
 }
 
 export function sign(payload, secret) {
@@ -81,7 +88,7 @@ export function currentUser(req, cfg) {
 // Mounts /auth/* routes and returns a middleware that protects everything else.
 export function installAuth(app, { cfg = authConfig(), loginPage, fetchImpl = fetch } = {}) {
   if (!cfg.enabled) {
-    app.get('/api/me', (req, res) => res.json({ user: null, auth: false }));
+    app.get('/api/me', (req, res) => res.json({ user: null, auth: false, admin: true }));
     return (req, res, next) => next();
   }
   if (!cfg.secret || cfg.secret.length < 32) throw new Error('SESSION_SECRET must be set to at least 32 random characters when Google sign-in is enabled.');
@@ -135,7 +142,7 @@ export function installAuth(app, { cfg = authConfig(), loginPage, fetchImpl = fe
 
   app.post('/auth/logout', (req, res) => { setCookie(res, COOKIE, '', { maxAge: 0, secure: cfg.secureCookies }); res.json({ ok: true }); });
   app.get('/auth/logout', (req, res) => { setCookie(res, COOKIE, '', { maxAge: 0, secure: cfg.secureCookies }); res.redirect('/auth/login'); });
-  app.get('/api/me', (req, res) => { const u = currentUser(req, cfg); if (!u) return res.status(401).json({ error: 'Sign in required' }); res.json({ user: { email: u.email, name: u.name, picture: u.picture }, auth: true }); });
+  app.get('/api/me', (req, res) => { const u = currentUser(req, cfg); if (!u) return res.status(401).json({ error: 'Sign in required' }); res.json({ user: { email: u.email, name: u.name, picture: u.picture }, auth: true, admin: isAdmin(u, cfg) }); });
 
   const PUBLIC = [/^\/auth\//, /^\/api\/health$/, /^\/favicon\.ico$/, /^\/assets\/(fonts\/|anyday-logo-white\.png$|anyday-mark\.png$|favicon-\d+\.png$|apple-touch-icon\.png$)/];
   return (req, res, next) => {

@@ -7,7 +7,7 @@ import { createApp } from '../server/index.js';
 import { sign, verify, isAllowed, authConfig } from '../server/auth.js';
 
 const SECRET = 'x'.repeat(48);
-const cfg = { ...authConfig({ GOOGLE_CLIENT_ID: 'cid.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 'csecret', SESSION_SECRET: SECRET, ALLOWED_DOMAIN: 'anyday.inc', ALLOWED_EMAILS: 'guest@partner.com', PUBLIC_URL: '' }) };
+const cfg = { ...authConfig({ GOOGLE_CLIENT_ID: 'cid.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 'csecret', SESSION_SECRET: SECRET, ALLOWED_DOMAIN: 'anyday.inc', ALLOWED_EMAILS: 'guest@partner.com', ADMIN_EMAILS: 'boss@anyday.inc', PUBLIC_URL: '' }) };
 const b64u = o => Buffer.from(JSON.stringify(o)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
 
 test('session tokens are signed and expire', () => {
@@ -101,4 +101,26 @@ test('a public deployment cannot start without sign-in configured', async () => 
   const r = spawnSync(process.execPath, ['server/index.js'], { cwd: path.resolve(path.dirname(new URL(import.meta.url).pathname), '..'), env: { ...process.env, HOST: '0.0.0.0', PORT: '0', GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'aqs-x-')) }, timeout: 10000, encoding: 'utf8' });
   assert.equal(r.status, 1);
   assert.match(r.stderr, /Refusing to start/);
+});
+
+test('cost rates and margins are visible to admins only', async () => {
+  const claims = code => ({ email: code === 'boss' ? 'boss@anyday.inc' : 'pm@anyday.inc', email_verified: true, hd: 'anyday.inc', name: code });
+  await withApp(claims, async ({ base, signIn }) => {
+    const boss = (await signIn('boss')).cookie; const pm = (await signIn('pm')).cookie;
+    const call = (cookie, m, p, b) => fetch(base + p, { method: m, headers: { cookie, 'content-type': 'application/json' }, body: b ? JSON.stringify(b) : undefined });
+    assert.equal((await (await call(boss, 'GET', '/api/me')).json()).admin, true);
+    assert.equal((await (await call(pm, 'GET', '/api/me')).json()).admin, false);
+    const t0 = await (await call(boss, 'GET', '/api/team')).json();
+    const saved = await (await call(boss, 'PUT', '/api/team', { team: { people: [{ id: 'a', name: 'Ana', role: 'dev', hoursPerWeek: 40, costRate: 55, costCurrency: 'CAD' }] }, baseUpdatedAt: t0.updatedAt })).json();
+    assert.equal(saved.people[0].costRate, 55);
+    const seen = await (await call(pm, 'GET', '/api/team')).json();
+    assert.equal(seen.people[0].costRate, undefined, 'PM does not receive cost rates');
+    // a PM editing the team keeps the cost rates they cannot see
+    await call(pm, 'PUT', '/api/team', { team: { people: [{ ...seen.people[0], hoursPerWeek: 30 }] } });
+    const after = await (await call(boss, 'GET', '/api/team')).json();
+    assert.equal(after.people[0].hoursPerWeek, 30); assert.equal(after.people[0].costRate, 55);
+    assert.equal((await call(pm, 'GET', '/api/settings')).status, 403);
+    assert.equal((await call(pm, 'GET', '/api/quotes/example-pytorch/margin')).status, 403);
+    assert.equal((await call(boss, 'GET', '/api/quotes/example-pytorch/margin')).status, 200);
+  });
 });

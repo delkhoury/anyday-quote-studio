@@ -5,6 +5,7 @@ import path from 'node:path';
 import { newQuote, duplicateQuote, validateQuoteShape, validateLibraryShape, cryptoId, emptyFoundation, quoteTypes } from '../shared/quote.js';
 import { migrateQuote, migrateLibrary, catalogueToFoundation } from '../shared/migrate.js';
 import { emptyTeam, ROLE_IDS } from '../shared/plan.js';
+import { DEFAULT_SETTINGS } from '../shared/margin.js';
 
 const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 export class NotFound extends Error { constructor(m) { super(m); this.status = 404; } }
@@ -25,6 +26,7 @@ export function createStore({ dataDir, root }) {
   const legacyCatFile = path.join(dataDir, 'aaif-catalogue.json');
   const counterFile = path.join(dataDir, 'counter.json');
   const teamFile = path.join(dataDir, 'team.json');
+  const settingsFile = path.join(dataDir, 'settings.json');
   const defaults = readJson(path.join(root, 'shared/library-default.json'));
   const firstRun = !fs.existsSync(libFile);
   migrateDataDir({ dataDir, dirs, libFile, legacyCatFile, defaults });
@@ -79,8 +81,16 @@ export function createStore({ dataDir, root }) {
   return {
     dataDir,
     getLibrary: () => readJson(libFile),
+    getSettings: () => ({ ...DEFAULT_SETTINGS, ...(fs.existsSync(settingsFile) ? readJson(settingsFile) : {}) }),
+    saveSettings(s) {
+      const rate = Number(s.costToQuoteRate); const target = s.targetMargin === null || s.targetMargin === '' ? null : Number(s.targetMargin);
+      if (!(rate > 0 && rate < 10)) throw new Invalid('Exchange rate must be a positive number, i.e. 0.72');
+      if (target !== null && !(target >= 0 && target <= 100)) throw new Invalid('Target margin must be 0 to 100');
+      const next = { costCurrency: String(s.costCurrency || 'CAD').slice(0, 3).toUpperCase(), costToQuoteRate: rate, targetMargin: target, updatedAt: new Date().toISOString() };
+      atomicWriteJson(settingsFile, next); return next;
+    },
     getTeam: () => (fs.existsSync(teamFile) ? readJson(teamFile) : emptyTeam()),
-    saveTeam(team, { baseUpdatedAt } = {}) {
+    saveTeam(team, { baseUpdatedAt, keepCosts = false } = {}) {
       if (!Array.isArray(team?.people)) throw new Invalid('Team needs a people list');
       const ids = new Set(); const errs = [];
       for (const p of team.people) {
@@ -94,7 +104,9 @@ export function createStore({ dataDir, root }) {
       if (errs.length) throw new Invalid('Team is not valid', errs);
       const cur = fs.existsSync(teamFile) ? readJson(teamFile) : null;
       if (cur && baseUpdatedAt && cur.updatedAt !== baseUpdatedAt) throw new Conflict('The team changed since you opened it. Reload and reapply your edits.', cur);
-      const next = { schemaVersion: 1, people: team.people, updatedAt: new Date().toISOString() };
+      let people = team.people;
+      if (keepCosts && cur) { const old = Object.fromEntries(cur.people.map(p => [p.id, p])); people = people.map(p => { const { costRate, costCurrency, ...rest } = p; return old[p.id] ? { ...rest, ...(old[p.id].costRate != null ? { costRate: old[p.id].costRate, costCurrency: old[p.id].costCurrency } : {}) } : rest; }); }
+      const next = { schemaVersion: 1, people, updatedAt: new Date().toISOString() };
       atomicWriteJson(teamFile, next); return next;
     },
     listFoundations() {

@@ -68,3 +68,12 @@ Your three LF example quotes, the Pricing Library and the AAIF foundation are al
 * **Updates:** Claude pushes changes to GitHub, Render rebuilds and redeploys by itself, and your quotes stay on the disk.
 * **If the site is down:** Render → the service → **Logs** shows why. The health check is `https://quotes.anyday.inc/api/health`.
 * **Safety net:** the app refuses to start on a public address unless Google sign-in is configured, so it can never be exposed by accident.
+
+## Connecting Clockify and turning on margins (2 minutes)
+
+In Render → the service → **Environment → Add environment variable**:
+
+* `CLOCKIFY_API_KEY`: a key from Clockify → Profile settings → API.
+* `ADMIN_EMAILS`: the accounts that may see cost rates and margins, comma separated.
+
+Save. Render redeploys by itself. Then use **Team → Sync from Clockify** and **Pricing Library → Hours from Clockify**.

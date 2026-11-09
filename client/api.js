@@ -5,6 +5,8 @@ import { migrateQuote, migrateLibrary } from '../shared/migrate.js';
 import { calculateQuote } from '../shared/pricing.js';
 import { inventoryCsv, portfolioSummary } from '../shared/inventory.js';
 import { emptyTeam, schedulePlan, planCsv } from '../shared/plan.js';
+import { entriesFromCsv, computeBaselines } from '../shared/baselines.js';
+import { computeMargin, DEFAULT_SETTINGS } from '../shared/margin.js';
 
 async function j(res) {
   const body = await res.json().catch(() => ({}));
@@ -23,6 +25,11 @@ export class ServerApi {
   saveLibrary(library, baseUpdatedAt) { return send('PUT', '/api/library', { library, baseUpdatedAt }); }
   importLibrary(library) { return send('POST', '/api/library/import', { library }); }
   team() { return fetch('/api/team').then(j); }
+  clockifySync() { return send('POST', '/api/team/clockify-sync', {}); }
+  baselines(body) { return send('POST', '/api/library/baselines', body); }
+  settings() { return fetch('/api/settings').then(j); }
+  saveSettings(s) { return send('PUT', '/api/settings', s); }
+  margin(id) { return fetch(`/api/quotes/${encodeURIComponent(id)}/margin`).then(j); }
   saveTeam(team, baseUpdatedAt) { return send('PUT', '/api/team', { team, baseUpdatedAt }); }
   async planPdf(id) {
     const res = await fetch(`/api/quotes/${encodeURIComponent(id)}/plan.pdf`, { method: 'POST' });
@@ -67,8 +74,17 @@ export class MemoryApi {
     this.n = seed.quotes.length + 1;
   }
   num() { return `AQ-${new Date().getUTCFullYear()}-${String(this.n++).padStart(4, '0')}`; }
-  async health() { return { ok: true, mode: 'prototype', pdf: false, scanner: false }; }
-  async me() { return { user: null, auth: false }; }
+  async health() { return { ok: true, mode: 'prototype', pdf: false, scanner: false, clockify: false }; }
+  async me() { return { user: null, auth: false, admin: true }; }
+  async clockifySync() { throw new Error('Clockify sync needs the Anyday Quote Studio server. Import a Clockify CSV in the Pricing Library instead.'); }
+  async baselines(body) {
+    if (body.source !== 'csv') throw new Error('Reading Clockify directly needs the server. Upload a Clockify CSV export instead.');
+    const byName = Object.fromEntries(this.tm.people.map(p => [String(p.name).trim().toLowerCase(), p]));
+    return computeBaselines(entriesFromCsv(body.csv, { roleOf: u => (byName[String(u).trim().toLowerCase()] ? { role: byName[String(u).trim().toLowerCase()].role } : null) }), this.lib);
+  }
+  async settings() { return { ...DEFAULT_SETTINGS, ...(this.st || {}) }; }
+  async saveSettings(s) { this.st = { ...s }; return this.settings(); }
+  async margin(id) { const q = await this.quote(id); return computeMargin(calculateQuote(q), schedulePlan(q, { team: this.tm, library: this.lib }), this.tm, await this.settings()); }
   async logout() {}
   async library() { return JSON.parse(JSON.stringify(this.lib)); }
   async saveLibrary(library, baseUpdatedAt) {

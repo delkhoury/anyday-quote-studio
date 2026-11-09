@@ -84,7 +84,7 @@ export function planRows(quote, { library = null, calc = null } = {}) {
       after: saved.after || '',
       effort: effort || { setup: emptyRoles(), perUnit: emptyRoles() },
       effortSource: saved.effort && effortIsSet(saved.effort) ? 'quote' : (effortIsSet(libEffort) ? 'library' : 'none'),
-      libraryEffort: libEffort,
+      libraryEffort: libEffort, baseline: !(saved.effort && effortIsSet(saved.effort)) && libEffort?.source === 'baseline' ? libEffort.baseline || {} : null,
       hours, hoursNeeded: !defined,
       assign: saved.assign || {}, note: saved.note || '',
     });
@@ -202,8 +202,9 @@ export function weeksLabel(r) {
 // Turn a row's hours into library defaults: per unit hours for quantity based items, a fixed
 // amount otherwise. Returns the effort record to store on the library item.
 export function effortAsDefault(row, existing = {}) {
+  const { baseline, ...rest } = existing || {};
   return {
-    ...existing,
+    ...rest, source: 'pm',
     internalName: existing.internalName || '',
     doneWhen: existing.doneWhen || '',
     phase: existing.phase || '',

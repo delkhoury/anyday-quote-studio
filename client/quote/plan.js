@@ -94,7 +94,8 @@ export function PlanStep({ api, quote, update, library, setLibrary, health, flus
         <tbody>${PHASES.map(ph => { const rs = sched.rows.filter(r => r.phase === ph); return rs.length ? html`<tr class="ph"><td colspan=${ROLE_IDS.length + 5}>${ph}</td></tr>${rs.map(r => html`
           <tr key=${r.id}>
             <td style="min-width:240px"><b>${r.name}</b>${r.qtyBased ? html`<div class="tiny muted">${r.qty.toLocaleString()} ${r.qty === 1 ? r.unit : r.units}</div>` : null}
-              ${r.effortSource === 'quote' && r.kind === 'item' ? html` <${Badge} kind="info" title="Hours entered on this quote">This quote<//>` : null}</td>
+              ${r.effortSource === 'quote' && r.kind === 'item' ? html` <${Badge} kind="info" title="Hours entered on this quote">This quote<//>` : null}
+              ${r.baseline ? html` <${Badge} kind="warn" title=${r.baseline.basis || ''}>Baseline<//>` : null}</td>
             ${ROLE_IDS.map(k => html`<td class="num">${fmtH(r.hours[k])}</td>`)}
             <td class="num">${r.hoursNeeded ? html`<${Badge} kind="danger">Hours needed<//>` : html`<b>${fmtH(r.totalHours)}</b>`}</td>
             <td class="small">${r.totalHours ? (assignedNames(r).join(', ') || html`<span style="color:var(--danger)">Unassigned</span>`) : ''}</td>
@@ -124,7 +125,7 @@ function RowEditor({ r, rows, people, setRow, setEffort, saveDefault, remove }) 
           <td><${NumInput} value=${r.effort?.setup?.[role.id] ?? null} step=${0.25} ariaLabel=${`${role.label} fixed hours for ${r.name}`} onChange=${v => setEffort(r, 'setup', role.id, v)} /></td>
           ${r.qtyBased ? html`<td><${NumInput} value=${r.effort?.perUnit?.[role.id] ?? null} step=${0.25} ariaLabel=${`${role.label} hours per ${r.unit} for ${r.name}`} onChange=${v => setEffort(r, 'perUnit', role.id, v)} /></td><td class="num small">${fmtH(r.hours[role.id]) || '0'}h</td>` : null}</tr>`)}
       </tbody></table>
-      ${r.kind === 'item' ? html`<div class="small muted">${r.effortSource === 'library' ? 'Hours come from the Pricing Library defaults. Editing them here changes this quote only.' : r.effortSource === 'quote' ? 'Hours entered on this quote.' : 'No default hours yet. Enter them here, then save them as the default so the next quote starts with them.'}</div>
+      ${r.kind === 'item' ? html`<div class="small muted">${r.effortSource === 'library' && r.baseline ? `Hours are a Clockify baseline from the Pricing Library (${r.baseline.confidence || 'low'} confidence). Check them; editing here changes this quote only, and Save as library default makes them the confirmed default.` : r.effortSource === 'library' ? 'Hours come from the Pricing Library defaults. Editing them here changes this quote only.' : r.effortSource === 'quote' ? 'Hours entered on this quote.' : 'No default hours yet. Enter them here, then save them as the default so the next quote starts with them.'}</div>
         <div class="row wrap">${changed ? html`<button class="btn small" onClick=${saveDefault}>Save as library default</button>` : null}
           ${changed && effortIsSet(r.libraryEffort) ? html`<button class="btn small ghost" onClick=${() => setRow(r, { effort: undefined })}>Use library default</button>` : null}</div>` : null}
       ${r.doneWhen ? html`<div class="small"><b>Done when:</b> ${r.doneWhen}</div>` : null}

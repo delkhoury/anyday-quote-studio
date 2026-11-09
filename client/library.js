@@ -3,6 +3,7 @@ import { html, Badge, Field, NumInput, TextInput, Modal, Seg, toast, askConfirm 
 import { describePricing } from '../shared/pricing.js';
 import { validateLibraryShape, quoteTypes } from '../shared/quote.js';
 import { ROLES, PHASES, defaultPhase, effortIsSet } from '../shared/plan.js';
+import { applyBaselines } from '../shared/baselines.js';
 import { fmtDate, toCents, centsToInput, fmtMoney } from '../shared/format.js';
 import { download, readFileText } from './api.js';
 
@@ -14,7 +15,7 @@ const MODELS = [
   { value: 'included', label: 'Included at no charge' },
 ];
 
-export function LibraryScreen({ api, onSaved }) {
+export function LibraryScreen({ api, onSaved, health, admin }) {
   const [lib, setLib] = useState(null);
   const [orig, setOrig] = useState(null);
   const [tab, setTab] = useState('items');
@@ -22,6 +23,7 @@ export function LibraryScreen({ api, onSaved }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [baselines, setBaselines] = useState(false);
   const [errs, setErrs] = useState([]);
   useEffect(() => { api.library().then(l => { setLib(l); setOrig(JSON.stringify(l)); }); }, []);
   const dirty = lib && JSON.stringify(lib) !== orig;
@@ -51,6 +53,7 @@ export function LibraryScreen({ api, onSaved }) {
       <div class="muted small" style="margin-top:6px">${lib.name} · version <b>${lib.version}</b> · saved ${fmtDate(lib.updatedAt)} · prices in ${lib.currency}. Source: ${lib.source?.workbook || 'imported'}.</div></div>
       <div class="row wrap">
         ${dirty ? html`<${Badge} kind="warn">Unsaved changes<//>` : null}
+        <button class="btn" onClick=${() => setBaselines(true)}>Hours from Clockify</button>
         <label class="btn">Import<input type="file" accept=".json" class="hidden" onChange=${importFile} /></label>
         <button class="btn" onClick=${() => download(`anyday-pricing-library-${lib.version}.json`, lib)}>Export</button>
         <button class="btn" disabled=${!dirty} onClick=${() => setLib(JSON.parse(orig))}>Discard</button>
@@ -77,7 +80,7 @@ export function LibraryScreen({ api, onSaved }) {
             <td class="small">${secName(i.section)}${i.section === 'base' ? html`<div class="tiny muted">${i.isDesign ? 'Design' : 'Implementation'}</div>` : null}${i.phase && ((i.phase === 'Migration' && i.section === 'extensions')) ? html`<div class="tiny muted">Phase says Migration; mapped by calculator tab</div>` : null}</td>
             <td class="small" style="max-width:360px">${describePricing(i.pricing)}</td>
             <td>${i.pricing.status === 'starting_at' ? html`<${Badge} kind="warn">Starting at<//>` : i.pricing.status === 'unpriced' ? html`<${Badge} kind="danger">Price needed<//>` : html`<${Badge} kind="ok">Confirmed<//>`}</td>
-            <td>${effortIsSet(i.effort) ? html`<${Badge} kind="ok">Set<//>` : html`<${Badge}>Hours needed<//>`}</td>
+            <td>${effortBadge(i.effort)}</td>
             <td><input type="checkbox" checked=${i.optionalAvailable !== false} aria-label=${'Available as optional addition: ' + i.name} onChange=${e => setItem(i.id, { optionalAvailable: e.target.checked })} /></td>
             <td><button class="icon-btn" aria-label=${'Edit ' + i.name} aria-expanded=${open === i.id} onClick=${() => setOpen(open === i.id ? null : i.id)}>${open === i.id ? '−' : '✎'}</button></td></tr>
           ${open === i.id ? html`<tr><td colspan="7" style="background:var(--surface-2)"><${ItemEditor} item=${i} lib=${lib} setItem=${setItem} setPricing=${setPricing} remove=${async () => { if (await askConfirm(`Remove ${i.name} from the library? Existing quotes keep their own copy.`, 'Remove item')) { setLib(l => ({ ...l, items: l.items.filter(x => x.id !== i.id) })); setOpen(null); } }} /></td></tr>` : null}`)}
@@ -93,6 +96,7 @@ export function LibraryScreen({ api, onSaved }) {
       </tbody></table></div>` : null}
 
     ${tab === 'types' ? html`<${PresetsEditor} lib=${lib} setItem=${setItem} />` : null}
+    ${baselines ? html`<${BaselinesModal} api=${api} health=${health} lib=${lib} onClose=${() => setBaselines(false)} onApply=${next => { setLib(next); setBaselines(false); toast('Baselines added. Review, then Save library.'); }} />` : null}
     ${adding ? html`<${AddItem} lib=${lib} onClose=${() => setAdding(false)} onAdd=${it => { setLib(l => ({ ...l, items: [...l.items, it] })); setAdding(false); setOpen(it.id); }} />` : null}
   </div>`;
 }
@@ -176,11 +180,13 @@ function AddItem({ lib, onClose, onAdd }) {
 function EffortEditor({ i, setItem }) {
   const e = i.effort || {};
   const set = patch => setItem(i.id, { effort: { ...e, ...patch } });
-  const setH = (kind, role, v) => set({ [kind]: { ...(e[kind] || {}), [role]: v } });
+  const setHours = patch => { const { baseline, ...rest } = e; setItem(i.id, { effort: { ...rest, ...patch, source: 'manual' } }); };
+  const setH = (kind, role, v) => setHours({ [kind]: { ...(e[kind] || {}), [role]: v } });
   const unit = i.pricing.qtyUnit || 'unit';
   const qtyBased = i.pricing.model !== 'included';
   return html`<div class="card" style="background:var(--surface);margin-top:4px">
-    <div class="spread"><div class="caps">Effort (internal)</div>${effortIsSet(e) ? html`<${Badge} kind="ok">Hours set<//>` : html`<${Badge}>Hours needed<//>`}</div>
+    <div class="spread"><div class="caps">Effort (internal)</div>${effortBadge(e)}</div>
+    ${e.source === 'baseline' && e.baseline ? html`<div class="banner info tiny" style="margin-top:6px"><b>Baseline from Clockify</b> (${e.baseline.confidence} confidence${e.baseline.samples ? `, ${e.baseline.samples} samples` : ''}). ${e.baseline.basis} Editing an hour makes these your own hours, and later Clockify refreshes leave them alone.</div>` : null}
     <p class="tiny muted" style="margin:4px 0 8px">Default hours for the Plan step. Project managers can also fill these in from a quote and save them as defaults. Never shown to clients.</p>
     <div class="grid2"><${Field} label="Internal name"><${TextInput} value=${e.internalName || ''} placeholder=${i.name} onChange=${v => set({ internalName: v })} /><//>
       <${Field} label="Phase"><select class="input" value=${e.phase || ''} onChange=${ev => set({ phase: ev.target.value })}><option value="">${defaultPhase(i)} (default)</option>${PHASES.map(ph => html`<option value=${ph}>${ph}</option>`)}</select><//></div>
@@ -190,6 +196,53 @@ function EffortEditor({ i, setItem }) {
         <td><${NumInput} value=${e.setup?.[r.id] ?? null} ariaLabel=${`${r.label} fixed hours`} step=${0.25} onChange=${v => setH('setup', r.id, v)} /></td>
         ${qtyBased ? html`<td><${NumInput} value=${e.perUnit?.[r.id] ?? null} ariaLabel=${`${r.label} hours per ${unit}`} step=${0.25} onChange=${v => setH('perUnit', r.id, v)} /></td>` : null}</tr>`)}
     </tbody></table></div>`;
+}
+
+export function effortBadge(e) {
+  if (!effortIsSet(e)) return html`<${Badge}>Hours needed<//>`;
+  if (e.source === 'baseline') return html`<${Badge} kind="warn" title=${e.baseline?.basis || ''}>Baseline${e.baseline?.confidence ? ` · ${e.baseline.confidence}` : ''}<//>`;
+  return html`<${Badge} kind="ok">Set<//>`;
+}
+
+// Hours from Clockify: proposals from logged time, reviewed before anything changes.
+function BaselinesModal({ api, health, lib, onClose, onApply }) {
+  const [res, setRes] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const [sel, setSel] = useState(new Set());
+  const [open, setOpen] = useState(null);
+  const byId = Object.fromEntries(lib.items.map(i => [i.id, i]));
+  const ownHours = it => effortIsSet(it?.effort) && it.effort.source !== 'baseline';
+  const load = async body => {
+    setBusy(true); setErr(null);
+    try { const r = await api.baselines(body); setRes(r); setSel(new Set(r.proposals.filter(p => !ownHours(byId[p.id])).map(p => p.id))); }
+    catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const fromCsv = async e => { const f = e.target.files[0]; if (!f) return; e.target.value = ''; load({ source: 'csv', csv: await readFileText(f) }); };
+  const fmtH = v => (v ? (Math.round(v * 100) / 100).toString() : '');
+  const unitPrice = it => (it?.pricing?.model === 'per_unit' && it.pricing.unitPrice ? it.pricing.unitPrice : null);
+  const hoursOf = p => ROLES.reduce((a, r) => a + (p.effort.perUnit?.[r.id] || 0) + (p.effort.setup?.[r.id] || 0), 0);
+  return html`<${Modal} title="Hours from Clockify" onClose=${onClose} footer=${res ? html`<span class="small muted grow">${sel.size} of ${res.proposals.length} selected. Hours someone set are never replaced.</span><button class="btn" onClick=${onClose}>Cancel</button><button class="btn primary" disabled=${!sel.size} onClick=${() => { const { library } = applyBaselines(lib, res.proposals, { ids: [...sel] }); onApply(library); }}>Add ${sel.size} baseline${sel.size === 1 ? '' : 's'}</button>` : html`<button class="btn" onClick=${onClose}>Close</button>`}>
+    ${!res ? html`<div class="stack">
+      <p class="small">Proposes default hours for each deliverable from the time your team has logged. Clockify entries have no quantities, so these are best guesstimates: each one says how it was worked out and how many tasks or projects it rests on. Nothing changes until you add them and save the library.</p>
+      <div class="row wrap">
+        <button class="btn primary" disabled=${busy || !health?.clockify} title=${health?.clockify ? '' : 'Add CLOCKIFY_API_KEY in Render to read Clockify directly'} onClick=${() => load({ source: 'clockify', months: 12 })}>${busy ? 'Reading Clockify…' : 'Read the last 12 months from Clockify'}</button>
+        <label class="btn">Upload a Clockify CSV export<input type="file" accept=".csv" class="hidden" onChange=${fromCsv} /></label></div>
+      <div class="tiny muted">CSV: Clockify → Reports → Detailed → Export → CSV. Roles come from the Group column, or from the Team when names match.</div>
+      ${err ? html`<div class="banner danger small">${err}</div>` : null}</div>` : html`<div class="stack">
+      <div class="banner info small">${res.summary.entries.toLocaleString()} client time entries, ${res.summary.hours.toLocaleString()} hours, ${res.summary.people} people, ${res.summary.projects} projects. ${res.summary.categorised}% of hours have a Task Category. Project management added at ${res.summary.pmShare}% of hours. Implied rate is the unit price divided by the baseline hours: a very high rate usually means the baseline is too low.</div>
+      <div class="scroll-x"><table class="t"><thead><tr><th><input type="checkbox" aria-label="Select all" checked=${sel.size === res.proposals.length} onChange=${e => setSel(new Set(e.target.checked ? res.proposals.map(p => p.id) : []))} /></th><th>Deliverable</th>${ROLES.map(r => html`<th class="num">${r.short}</th>`)}<th>Per</th><th>Evidence</th><th class="num">Implied rate</th><th>Now</th></tr></thead><tbody>
+        ${res.proposals.map(p => { const it = byId[p.id]; const per = p.effort.perUnit ? it?.pricing?.qtyUnit : 'fixed'; const up = unitPrice(it); const h = hoursOf(p); return html`<tr key=${p.id}>
+          <td><input type="checkbox" aria-label=${'Use baseline for ' + (it?.name || p.id)} checked=${sel.has(p.id)} onChange=${e => { const n = new Set(sel); e.target.checked ? n.add(p.id) : n.delete(p.id); setSel(n); }} /></td>
+          <td><b>${it?.name || p.id}</b><div><button class="btn small ghost" style="padding:0" onClick=${() => setOpen(open === p.id ? null : p.id)}>${open === p.id ? 'Hide basis' : 'Basis'}</button></div>${open === p.id ? html`<div class="tiny muted" style="max-width:420px">${p.basis}</div>` : null}</td>
+          ${ROLES.map(r => html`<td class="num">${fmtH((p.effort.perUnit || p.effort.setup || {})[r.id])}</td>`)}
+          <td class="small">${per}</td>
+          <td><${Badge} kind=${p.method === 'clockify' ? (p.confidence === 'medium' ? 'ok' : 'warn') : ''}>${p.method === 'clockify' ? `${p.confidence} · ${p.samples}` : p.method}<//></td>
+          <td class="num small">${up && h ? `${fmtMoney(Math.round(up / h))}/h` : ''}</td>
+          <td>${effortBadge(it?.effort)}</td></tr>`; })}
+      </tbody></table></div>
+      ${res.summary.missing?.length ? html`<div class="tiny muted">No evidence for: ${res.summary.missing.map(id => byId[id]?.name || id).join(', ')}. These stay Hours needed.</div>` : null}</div>`}
+  <//>`;
 }
 
 // What each quote type starts with. Presets only shape a new quote; Anyday edits every line afterwards.

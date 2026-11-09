@@ -17,7 +17,7 @@ function useHash() {
 }
 const go = h => { location.hash = h; window.scrollTo(0, 0); };
 
-function App({ api, health, user }) {
+function App({ api, health, user, admin }) {
   const hash = useHash();
   const [library, setLibrary] = useState(null);
   useEffect(() => { api.library().then(setLibrary); }, []);
@@ -33,11 +33,11 @@ function App({ api, health, user }) {
     </div></header>
     <main class="main">
       ${health.mode === 'prototype' ? html`<div class="banner warn" style="margin-bottom:16px"><b>Interface prototype.</b> Quotes and library edits live in this browser tab only and are lost on reload, so use Export to keep them and Import to bring them back. Website scanning and PDF export need the deployable Anyday Quote Studio server; they are disabled here rather than simulated.</div>` : null}
-      ${route === 'library' ? html`<${LibraryScreen} api=${api} onSaved=${setLibrary} />`
+      ${route === 'library' ? html`<${LibraryScreen} api=${api} onSaved=${setLibrary} health=${health} admin=${admin} />`
         : route === 'foundations' ? html`<${FoundationsScreen} api=${api} go=${go} />`
-        : route === 'team' ? html`<${TeamScreen} api=${api} />`
+        : route === 'team' ? html`<${TeamScreen} api=${api} health=${health} admin=${admin} />`
         : route === 'foundation' && parts[1] ? html`<${FoundationEditor} key=${parts[1]} api=${api} id=${parts[1]} library=${library} go=${go} />`
-        : route === 'quote' && parts[1] ? html`<${QuoteEditor} key=${parts[1]} api=${api} id=${parts[1]} step=${parts[2] || 'setup'} health=${health} library=${library} setLibrary=${setLibrary} go=${go} />`
+        : route === 'quote' && parts[1] ? html`<${QuoteEditor} key=${parts[1]} api=${api} id=${parts[1]} step=${parts[2] || 'setup'} health=${health} library=${library} setLibrary=${setLibrary} admin=${admin} go=${go} />`
         : html`<${QuotesScreen} api=${api} library=${library} />`}
     </main>
     <${Toaster} /><${Dialogs} />`;
@@ -121,13 +121,13 @@ function NewQuote({ api, library, onClose }) {
 
 async function boot() {
   const root = document.getElementById('app');
-  let api, health, user = null;
+  let api, health, user = null, admin = true;
   if (window.__SEED__) { api = new MemoryApi(window.__SEED__); health = await api.health(); }
   else {
-    try { api = new ServerApi(); health = await api.health(); if (health.auth) user = (await api.me()).user; }
+    try { api = new ServerApi(); health = await api.health(); if (health.auth) { const me = await api.me(); user = me.user; admin = !!me.admin; } }
     catch { root.innerHTML = '<div class="main"><div class="banner danger">The Anyday Quote Studio server is not reachable. Start it with <code>npm start</code>.</div></div>'; return; }
   }
   root.innerHTML = '';
-  render(html`<${App} api=${api} health=${health} user=${user} />`, root);
+  render(html`<${App} api=${api} health=${health} user=${user} admin=${admin} />`, root);
 }
 boot();

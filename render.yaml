@@ -32,3 +32,7 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      - key: ADMIN_EMAILS          # comma separated; only these accounts see cost rates and margins
+        sync: false
+      - key: CLOCKIFY_API_KEY      # Clockify → Profile settings → API; read only use
+        sync: false

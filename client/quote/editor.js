@@ -60,12 +60,12 @@ function useQuote(api, id) {
   return { quote, update, replace, status, error, setError, flush };
 }
 
-export function QuoteEditor({ api, id, step: stepIn = 'setup', health, library, setLibrary, go }) {
+export function QuoteEditor({ api, id, step: stepIn = 'setup', health, library, setLibrary, admin, go }) {
   const { quote, update, replace, status, error, setError, flush } = useQuote(api, id);
   const calc = useMemo(() => { if (!quote) return null; try { return calculateQuote(quote); } catch (e) { return { error: e.message }; } }, [quote]);
   if (error && !quote) return html`<div class="banner danger">${error}</div>`;
   if (!quote || !calc) return html`<div class="empty">Loading quote…</div>`;
-  const ctx = { api, quote, update, replace, calc, health, library, setLibrary, go, flush };
+  const ctx = { api, quote, update, replace, calc, health, library, setLibrary, admin, go, flush };
   const STEPS = stepsFor(quote);
   const step = stepIn === 'details' ? 'setup' : (STEPS.some(x => x.id === stepIn) ? stepIn : 'setup');
   const idx = STEPS.findIndex(s => s.id === step);

@@ -58,7 +58,8 @@ To deploy to **quotes.anyday.inc** on Render, follow **DEPLOY.md**. The `render.
 Everything lives as plain JSON under `DATA_DIR`:
 
 * `library.json`: the current Pricing Library. Every save archives the previous version in `library-versions/`.
-* `team.json`: the delivery team used by the Plan step.
+* `team.json`: the delivery team used by the Plan step (cost rates are sent to admins only).
+* `settings.json`: cost currency, exchange rate and target margin.
 * `foundations/<id>.json`: one file per foundation (components, content models, integrations, capabilities provided, notes). Every save archives the previous version in `foundation-versions/`.
 * `backups/`: copies taken before an automatic data upgrade (i.e. `pre-v2-<time>/`).
 * `quotes/<id>.json`: one file per quote, including its own pricing snapshot.
@@ -98,6 +99,18 @@ Writes are atomic (write to a temporary file, flush, rename). Saving a quote tha
 ### Team
 
 **Team** lists the people who deliver the work: name, role (designer, developer, project manager, technical lead), hours a week for client work, and time off. Each quote's Plan step assigns them and times the work from their hours. On a quote you can also lower the share of someone's week spent on that project.
+
+### Clockify
+
+With `CLOCKIFY_API_KEY` set in Render:
+* **Team → Sync from Clockify** brings in names, roles from Clockify groups (Designers, Developers, Project Manager, Design Leads, Dev Leads), weekly capacity, approved time off and cost rates. A role changed in the studio is kept on later syncs.
+* **Pricing Library → Hours from Clockify** reads the last 12 months of logged time (or a Clockify detailed report CSV) and proposes baseline hours for each deliverable. Each baseline shows how it was worked out, how many tasks or projects it rests on, its confidence, and the implied rate (unit price ÷ hours). Baselines never replace hours someone set. Editing a baseline hour, or saving hours from a quote's Plan, makes them confirmed hours.
+
+Clockify entries carry no quantities, so baselines are guesstimates and tend to run low. To sharpen them over time, log the Task as the deliverable and put the count in the description (i.e. "Migrate 12 pages").
+
+### Costs and gross margin (admins only)
+
+Accounts listed in `ADMIN_EMAILS` see cost rates on the Team, cost settings (cost currency, exchange rate to USD, target margin) and a **Gross margin** card on each quote's Investment step: price against planned hours × each person's cost rate, by section and by deliverable. Everyone else never receives cost rates from the server, and the internal plan export contains no prices, costs or margins.
 
 ### Foundations
 
