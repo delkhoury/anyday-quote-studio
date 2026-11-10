@@ -8,6 +8,7 @@ import { authConfig, installAuth, isAdmin } from './auth.js';
 import { clockifyConfig, clockifyClient, syncTeamFromClockify, entriesFromClockify } from './clockify.js';
 import { entriesFromCsv, computeBaselines } from '../shared/baselines.js';
 import { computeMargin } from '../shared/margin.js';
+import { assistantConfig, createAssistant } from './assistant.js';
 import { loginPage } from './login-page.js';
 import { htmlToPdf, pdfAvailable, markDataUri, PDF_ASSET_BASE, closeBrowser } from './pdf.js';
 import { runScan } from './scanner/scan.js';
@@ -22,7 +23,7 @@ import { renderPlanDoc } from '../shared/plan-doc.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = path.join(ROOT, 'public');
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), scanOptions = {}, auth = authConfig(), fetchImpl, clockify = clockifyConfig(), clockifyFetch } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), scanOptions = {}, auth = authConfig(), fetchImpl, clockify = clockifyConfig(), clockifyFetch, assistant: assistantCfg = assistantConfig(), assistantFetch } = {}) {
   const store = createStore({ dataDir, root: ROOT });
   const app = express();
   app.disable('x-powered-by');
@@ -57,7 +58,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     };
   };
 
-  app.get('/api/health', (req, res) => res.json({ ok: true, mode: 'server', pdf: pdfAvailable(), scanner: true, auth: auth.enabled, clockify: clockify.enabled }));
+  app.get('/api/health', (req, res) => res.json({ ok: true, mode: 'server', pdf: pdfAvailable(), scanner: true, auth: auth.enabled, clockify: clockify.enabled, assistant: assistantCfg.enabled }));
 
   // ---- library -------------------------------------------------------------
   app.get('/api/library', h((req, res) => res.json(store.getLibrary())));
@@ -182,6 +183,19 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     res.setHeader('Content-Disposition', `${req.query.inline ? 'inline' : 'attachment'}; filename="${q.number || 'quote'}-${mode === 'final' ? 'proposal' : 'draft'}.pdf"`);
     res.send(pdf);
   }));
+
+  // ---- quote assistant (Claude): builds the quote from a brief ---------------
+  const ai = createAssistant({ store, dataDir, config: assistantCfg, fetchImpl: assistantFetch || fetch,
+    scan: p => runScan({ ...scanOptions, ...p, limits: { ...(scanOptions.limits || {}), ...(p.limits || {}) } }) });
+  app.get('/api/quotes/:id/assistant', h((req, res) => { store.getQuote(req.params.id); res.json(ai.conversation(req.params.id)); }));
+  app.post('/api/quotes/:id/assistant', h((req, res) => {
+    const files = Array.isArray(req.body?.files) ? req.body.files.filter(f => f && typeof f.data === 'string').map(f => ({ name: String(f.name || 'file').slice(0, 200), type: String(f.type || ''), data: f.data })) : [];
+    res.json(ai.start(req.params.id, { text: String(req.body?.text || '').slice(0, 20000), files }, req.user?.email || null));
+  }));
+  app.get('/api/assistant/jobs/:job', h((req, res) => res.json(ai.job(req.params.job))));
+  app.post('/api/assistant/jobs/:job/stop', h((req, res) => res.json(ai.stop(req.params.job))));
+  app.post('/api/quotes/:id/assistant/undo', h((req, res) => res.json(ai.undo(req.params.id))));
+  app.delete('/api/quotes/:id/assistant', h((req, res) => res.json(ai.clear(req.params.id))));
 
   // ---- internal delivery plan: price free, for the delivery team -----------
   const planFor = q => { const team = store.getTeam(); return { team, sched: schedulePlan(q, { team, library: store.getLibrary() }) }; };

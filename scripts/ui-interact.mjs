@@ -14,7 +14,7 @@ const ok = (cond, msg) => { console.log(cond ? 'PASS' : 'FAIL', msg); if (!cond)
 
 // 1. New platform for a 600 clinic portfolio
 await page.goto(base + '/#/quotes');
-await page.getByRole('button', { name: 'New quote' }).click();
+await page.getByRole('button', { name: 'New quote', exact: true }).click();
 await page.getByRole('radio', { name: /New platform and rollout/ }).click();
 await page.getByPlaceholder('Organisation name').fill('Acme Health');
 await shot('10-new-platform-modal');
@@ -52,7 +52,7 @@ ok(/604 websites/.test(q.proposal.intro), 'suggested intro mentions the portfoli
 
 // 2. New site on the AAIF foundation
 await page.goto(base + '/#/quotes');
-await page.getByRole('button', { name: 'New quote' }).click();
+await page.getByRole('button', { name: 'New quote', exact: true }).click();
 await page.getByRole('radio', { name: /New site on an existing foundation/ }).click();
 await page.getByPlaceholder('Organisation name').fill('Sub Brand Org');
 await page.locator('.modal select').selectOption('aaif');
@@ -77,7 +77,7 @@ ok(!stepNames.includes('Sites'), `no Sites step for a single site: ${stepNames.j
 
 // 3. Expansion of a live platform
 await page.goto(base + '/#/quotes');
-await page.getByRole('button', { name: 'New quote' }).click();
+await page.getByRole('button', { name: 'New quote', exact: true }).click();
 await page.getByRole('radio', { name: /Expand a platform/ }).click();
 await page.getByPlaceholder('Organisation name').fill('Acme Health');
 await page.locator('.modal select').selectOption('aaif');

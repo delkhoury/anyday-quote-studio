@@ -5,7 +5,7 @@ const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '
 const page = await b.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = []; page.on('pageerror', e => errors.push(e.message));
 await page.goto(base + '/#/quotes');
-await page.getByRole('button', { name: 'New quote' }).click();
+await page.getByRole('button', { name: 'New quote', exact: true }).click();
 await page.getByPlaceholder('Organisation name').fill('Fixture Foundation');
 await page.getByPlaceholder('https://example.org').fill(site);
 await page.getByRole('button', { name: 'Create quote' }).click();

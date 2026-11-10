@@ -72,12 +72,13 @@ function ItemRow({ l, quote, setLine, byId }) {
   if (p.status === 'unpriced' && l.state === 'included') badges.push(html`<${Badge} kind="danger">Price needed<//>`);
   if (line.provisional || line.qtySource === 'example') badges.push(html`<${Badge}>Provisional<//>`);
   if (line.qtySource === 'inventory') badges.push(html`<${Badge} kind="info">From inventory<//>`);
+  if (line.qtySource === 'assistant') badges.push(html`<${Badge} kind="accent" title=${line.aiNote || ''}>Assistant<//>`);
   if (l.prior) badges.push(html`<${Badge} kind="info" title="Volume pricing continues from the sites already live">Continues from ${fmtInt(l.prior)} live<//>`);
   if (l.allocated) badges.push(html`<${Badge} kind="accent">Allocated<//>`);
   if (l.allocatedOut) badges.push(html`<${Badge} title="Part of this fee is shown under design">${fmtMoney(l.allocatedOut)} shown as design<//>`);
   return html`<div class=${'item state-' + l.state}>
     <div class="item-main">
-      <div><div class="name">${item.name} ${badges}</div><div class="sub">${item.what}</div></div>
+      <div><div class="name">${item.name} ${badges}</div><div class="sub">${item.what}</div>${line.aiNote && l.state !== 'hidden' ? html`<div class="ai-reason"><b>Assistant:</b> ${line.aiNote}</div>` : null}</div>
       <${Seg} value=${l.state} options=${STATE_OPTS} size="small" onChange=${v => setLine(l.id, { state: v })} />
       <div class="row" style="justify-content:flex-end;gap:6px">
         ${p.model === 'included' ? html`<span class="small muted">Included</span>`

@@ -36,3 +36,5 @@ services:
         sync: false
       - key: CLOCKIFY_API_KEY      # Clockify → Profile settings → API; read only use
         sync: false
+      - key: ANTHROPIC_API_KEY     # console.anthropic.com → API keys; powers the quote assistant
+        sync: false

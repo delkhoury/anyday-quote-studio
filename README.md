@@ -100,6 +100,17 @@ Writes are atomic (write to a temporary file, flush, rename). Saving a quote tha
 
 **Team** lists the people who deliver the work: name, role (designer, developer, project manager, technical lead), hours a week for client work, and time off. Each quote's Plan step assigns them and times the work from their hours. On a quote you can also lower the share of someone's week spent on that project.
 
+### Quote assistant
+
+With `ANTHROPIC_API_KEY` set in Render, every quote has an **Assistant** button (and the Quotes screen has **New quote with assistant**). Attach a brief (PDF, Word, text, Markdown, CSV or images) or describe the project, and Claude builds the quote with the studio's own tools:
+* sets up the client, project, quote type, foundation and site types,
+* analyses the websites named in the brief and applies migration quantities from the scan,
+* chooses every deliverable with a quantity and a reason (shown under each line in Scope), sets foundation component treatments,
+* writes the introduction, assumptions and exclusions, and adds first pass Plan hours,
+* ends with the total and the open questions the brief did not answer.
+
+Changes apply to the quote directly. Each turn saves a restore point first, so **Undo last turn** puts the quote back exactly as it was. Prices always come from the Pricing Library; the assistant never sets prices. `ANTHROPIC_MODEL` (optional) picks the model; the default is `claude-sonnet-5-5`.
+
 ### Clockify
 
 With `CLOCKIFY_API_KEY` set in Render:

@@ -77,3 +77,9 @@ In Render → the service → **Environment → Add environment variable**:
 * `ADMIN_EMAILS`: the accounts that may see cost rates and margins, comma separated.
 
 Save. Render redeploys by itself. Then use **Team → Sync from Clockify** and **Pricing Library → Hours from Clockify**.
+
+## Turning on the quote assistant (2 minutes)
+
+1. Go to **console.anthropic.com**, sign in, add billing, and create an API key (API keys → Create key).
+2. In Render → the service → **Environment → Add environment variable**: `ANTHROPIC_API_KEY` with that key. Save; Render redeploys by itself.
+3. Open any quote and click **Assistant**.

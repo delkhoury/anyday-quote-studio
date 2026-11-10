@@ -21,7 +21,9 @@ function App({ api, health, user, admin }) {
   const hash = useHash();
   const [library, setLibrary] = useState(null);
   useEffect(() => { api.library().then(setLibrary); }, []);
-  const parts = hash.replace(/^#\/?/, '').split('/');
+  const [path0, query = ''] = hash.replace(/^#\/?/, '').split('?');
+  const parts = path0.split('/');
+  const openAi = /(^|&)ai=1(&|$)/.test(query);
   const route = parts[0] || 'quotes';
   return html`
     <header class="topbar"><div class="topbar-inner">
@@ -37,7 +39,7 @@ function App({ api, health, user, admin }) {
         : route === 'foundations' ? html`<${FoundationsScreen} api=${api} go=${go} />`
         : route === 'team' ? html`<${TeamScreen} api=${api} health=${health} admin=${admin} />`
         : route === 'foundation' && parts[1] ? html`<${FoundationEditor} key=${parts[1]} api=${api} id=${parts[1]} library=${library} go=${go} />`
-        : route === 'quote' && parts[1] ? html`<${QuoteEditor} key=${parts[1]} api=${api} id=${parts[1]} step=${parts[2] || 'setup'} health=${health} library=${library} setLibrary=${setLibrary} admin=${admin} go=${go} />`
+        : route === 'quote' && parts[1] ? html`<${QuoteEditor} key=${parts[1]} api=${api} id=${parts[1]} step=${parts[2] || 'setup'} openAi=${openAi} health=${health} library=${library} setLibrary=${setLibrary} admin=${admin} go=${go} />`
         : html`<${QuotesScreen} api=${api} library=${library} />`}
     </main>
     <${Toaster} /><${Dialogs} />`;
@@ -56,7 +58,7 @@ function QuotesScreen({ api, library }) {
   }
   return html`<div class="stack">
     <div class="page-head"><div><div class="eyebrow">Anyday WebOps</div><h1>Quotes</h1></div>
-      <div class="row"><label class="btn">Import quote<input type="file" accept=".json" class="hidden" onChange=${importFile} /></label><button class="btn primary" onClick=${() => setCreating(true)}>New quote</button></div></div>
+      <div class="row"><label class="btn">Import quote<input type="file" accept=".json" class="hidden" onChange=${importFile} /></label><button class="btn" onClick=${() => setCreating(true)}>New quote</button><button class="btn primary" onClick=${async () => { try { const q = await api.createQuote({ client: '', type: 'new_platform' }); go(`#/quote/${q.id}/setup?ai=1`); } catch (e) { setErr(e.message); } }}>New quote with assistant</button></div></div>
     ${err ? html`<div class="banner danger">${err}</div>` : null}
     ${!list ? html`<div class="empty">Loading…</div>` : !list.length ? html`<div class="card empty"><h2>No quotes yet</h2><p>Create a quote to price a new platform, a site on an existing foundation, or an expansion.</p></div>` : html`
     <div class="card flush"><div class="scroll-x"><table class="t">

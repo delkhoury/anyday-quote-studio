@@ -9,6 +9,7 @@ import { ScopeStep } from './scope.js';
 import { InvestmentStep } from './investment.js';
 import { SitesStep } from './sites.js';
 import { PlanStep } from './plan.js';
+import { AssistantPanel } from './assistant.js';
 import { quoteTypeOf, quoteTypes } from '../../shared/quote.js';
 
 // The steps depend on the quote type: portfolios get a Sites step and analyse samples.
@@ -60,7 +61,8 @@ function useQuote(api, id) {
   return { quote, update, replace, status, error, setError, flush };
 }
 
-export function QuoteEditor({ api, id, step: stepIn = 'setup', health, library, setLibrary, admin, go }) {
+export function QuoteEditor({ api, id, step: stepIn = 'setup', openAi = false, health, library, setLibrary, admin, go }) {
+  const [aiOpen, setAiOpen] = useState(openAi);
   const { quote, update, replace, status, error, setError, flush } = useQuote(api, id);
   const calc = useMemo(() => { if (!quote) return null; try { return calculateQuote(quote); } catch (e) { return { error: e.message }; } }, [quote]);
   if (error && !quote) return html`<div class="banner danger">${error}</div>`;
@@ -79,6 +81,7 @@ export function QuoteEditor({ api, id, step: stepIn = 'setup', health, library, 
       </div>
       <div class="row wrap">
         <span class="saved" aria-live="polite">${{ saved: 'All changes saved', saving: 'Saving…', pending: 'Unsaved changes', error: 'Not saved' }[status]}</span>
+        <button class=${'btn' + (aiOpen ? ' dark' : ' primary')} aria-pressed=${aiOpen} onClick=${() => setAiOpen(!aiOpen)}>Assistant</button>
         <button class="btn" onClick=${() => download(`${quote.number || 'quote'}.json`, quote)}>Export quote</button>
         <button class="btn" onClick=${async () => { await flush(); const c = await api.duplicateQuote(quote.id); toast(`Duplicated as ${c.number}`); go(`#/quote/${c.id}/setup`); }}>Duplicate</button>
       </div>
@@ -90,6 +93,7 @@ export function QuoteEditor({ api, id, step: stepIn = 'setup', health, library, 
       ${STEPS.map((s, i) => html`<a href=${`#/quote/${quote.id}/${s.id}`} class=${i === idx ? 'active' : ''} aria-current=${i === idx ? 'step' : null}><div class="n">${i + 1}</div><div class="t">${s.t}</div><div class="s">${s.s}</div></a>`)}
     </nav>
     ${step === 'investment' || step === 'plan' ? html`<${Step} ...${ctx} />` : html`<div class="layout-rail"><div class="grow"><${Step} ...${ctx} /></div><${Rail} calc=${calc} quote=${quote} go=${go} /></div>`}
+    ${aiOpen ? html`<${AssistantPanel} api=${api} quote=${quote} replace=${replace} flush=${flush} health=${health} onClose=${() => setAiOpen(false)} />` : null}
     <div class="spread" style="margin-top:22px">
       ${idx > 0 ? html`<a class="btn" href=${`#/quote/${quote.id}/${STEPS[idx - 1].id}`}>← ${STEPS[idx - 1].t}</a>` : html`<span></span>`}
       ${idx < STEPS.length - 1 ? html`<a class="btn dark" href=${`#/quote/${quote.id}/${STEPS[idx + 1].id}`}>${STEPS[idx + 1].t} →</a>` : null}

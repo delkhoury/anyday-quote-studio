@@ -25,6 +25,12 @@ export class ServerApi {
   saveLibrary(library, baseUpdatedAt) { return send('PUT', '/api/library', { library, baseUpdatedAt }); }
   importLibrary(library) { return send('POST', '/api/library/import', { library }); }
   team() { return fetch('/api/team').then(j); }
+  assistant(id) { return fetch(`/api/quotes/${encodeURIComponent(id)}/assistant`).then(j); }
+  askAssistant(id, body) { return send('POST', `/api/quotes/${encodeURIComponent(id)}/assistant`, body); }
+  assistantJob(jobId) { return fetch(`/api/assistant/jobs/${encodeURIComponent(jobId)}`).then(j); }
+  stopAssistant(jobId) { return send('POST', `/api/assistant/jobs/${encodeURIComponent(jobId)}/stop`, {}); }
+  undoAssistant(id) { return send('POST', `/api/quotes/${encodeURIComponent(id)}/assistant/undo`, {}); }
+  clearAssistant(id) { return send('DELETE', `/api/quotes/${encodeURIComponent(id)}/assistant`); }
   clockifySync() { return send('POST', '/api/team/clockify-sync', {}); }
   baselines(body) { return send('POST', '/api/library/baselines', body); }
   settings() { return fetch('/api/settings').then(j); }
@@ -76,6 +82,8 @@ export class MemoryApi {
   num() { return `AQ-${new Date().getUTCFullYear()}-${String(this.n++).padStart(4, '0')}`; }
   async health() { return { ok: true, mode: 'prototype', pdf: false, scanner: false, clockify: false }; }
   async me() { return { user: null, auth: false, admin: true }; }
+  async assistant() { return { transcript: [], canUndo: false, running: false, enabled: false }; }
+  async askAssistant() { throw new Error('The assistant needs the Anyday Quote Studio server.'); }
   async clockifySync() { throw new Error('Clockify sync needs the Anyday Quote Studio server. Import a Clockify CSV in the Pricing Library instead.'); }
   async baselines(body) {
     if (body.source !== 'csv') throw new Error('Reading Clockify directly needs the server. Upload a Clockify CSV export instead.');
