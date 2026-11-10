@@ -113,6 +113,7 @@ ul.list li::marker { color: var(--accent); }
 
 .optional td { padding: 4pt 8pt; }
 .optional td .desc { font-size: 7.4pt; }
+.appendix table { table-layout: fixed; }
 .appendix td { font-size: 7pt; padding: 3pt 6pt; word-break: break-all; }
 .appendix th { font-size: 5.6pt; padding: 4pt 6pt; }
 
@@ -276,6 +277,8 @@ export function allAssumptions(quote, calc) {
   return [...new Set(list.map(s => s.trim()).filter(Boolean))];
 }
 
+export const APPENDIX_MAX_ROWS = 2000;
+
 export function renderProposal(quote, opts = {}) {
   const { mode = 'draft', appendix = quote.proposal?.includeAppendix, assetBase = '/assets', fontCssHref = '', logoUrl = `${assetBase}/anyday-logo-white.png`, markDataUri = '', lorienUrl = '', screen = false, quoteDate } = opts;
   const calc = opts.calc || calculateQuote(quote);
@@ -332,8 +335,16 @@ export function renderProposal(quote, opts = {}) {
 
   let appendixHtml = '';
   if (appendix && quote.inventory?.entries?.length) {
-    const rows = quote.inventory.entries.map(e => { const ef = effective(e); return `<tr><td>${h(e.url)}</td><td>${h(e.findings?.title || '')}</td><td>${h(ef.contentType)}</td><td>${h(CATEGORY_BY_ID[ef.category]?.short || ef.category)}</td><td>${ef.category === 'ARCHIVE' ? (ef.include ? 'Regenerate' : 'No') : (ef.include ? 'Yes' : 'No')}</td></tr>`; }).join('');
-    appendixHtml = `<div class="block newpage appendix">${head('Appendix', 'URL inventory', `${fmtInt(quote.inventory.entries.length)} URLs. Classifications are recommendations reviewed by Anyday.`)}<table><thead><tr><th style="width:42%">URL</th><th>Title</th><th>Content type</th><th>Category</th><th>Included</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    // Printing a table with tens of thousands of rows takes Chromium several GB of memory, so
+    // the PDF lists the first APPENDIX_MAX_ROWS (included URLs first); the CSV has every URL.
+    const all = quote.inventory.entries.map(e => ({ e, ef: effective(e) }));
+    const order = r => (r.ef.include ? 0 : 1);
+    const shown = all.length > APPENDIX_MAX_ROWS ? [...all].sort((a, b) => order(a) - order(b)).slice(0, APPENDIX_MAX_ROWS) : all;
+    const rows = shown.map(({ e, ef }) => `<tr><td>${h(e.url)}</td><td>${h(e.findings?.title || '')}</td><td>${h(ef.contentType)}</td><td>${h(CATEGORY_BY_ID[ef.category]?.short || ef.category)}</td><td>${ef.category === 'ARCHIVE' ? (ef.include ? 'Regenerate' : 'No') : (ef.include ? 'Yes' : 'No')}</td></tr>`).join('');
+    const intro = all.length > shown.length
+      ? `${fmtInt(all.length)} URLs. The first ${fmtInt(shown.length)} are listed here, included URLs first; the complete inventory is provided as a spreadsheet. Classifications are recommendations reviewed by Anyday.`
+      : `${fmtInt(all.length)} URLs. Classifications are recommendations reviewed by Anyday.`;
+    appendixHtml = `<div class="block newpage appendix">${head('Appendix', 'URL inventory', intro)}<table><thead><tr><th style="width:42%">URL</th><th>Title</th><th>Content type</th><th>Category</th><th>Included</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
   const draftNote = !final ? `<div class="draft-banner"><b>Draft.</b> ${calc.blockers.length ? `${calc.blockers.length} item${calc.blockers.length === 1 ? '' : 's'} still need a price or quantity before this proposal can be issued.` : 'Ready to issue as a final proposal.'}</div>` : '';

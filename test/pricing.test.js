@@ -207,3 +207,14 @@ test('LF examples reproduce workbook migration and extension totals', () => {
     assert.equal(q.lines.BASE_ADV_BRAND_CONTROLS.state, 'hidden');
   }
 });
+
+test('proposal appendix is capped so huge inventories cannot exhaust the PDF renderer', async () => {
+  const { renderProposal, APPENDIX_MAX_ROWS } = await import('../shared/proposal.js');
+  const q = JSON.parse(fs.readFileSync(new URL('../seed/quotes/example-cncf.json', import.meta.url)));
+  const base = q.inventory.entries;
+  q.inventory.entries = Array.from({ length: 5 }, (_, i) => base.map(e => ({ ...e, url: e.url + '?v' + i }))).flat();
+  const html = renderProposal(q, { appendix: true });
+  const appendix = html.slice(html.indexOf('class="block newpage appendix"'));
+  assert.equal((appendix.match(/<tr><td>/g) || []).length, APPENDIX_MAX_ROWS);
+  assert.match(appendix, /The first 2,000 are listed here, included URLs first; the complete inventory is provided as a spreadsheet/);
+});
