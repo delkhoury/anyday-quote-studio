@@ -166,6 +166,19 @@ test('conversation repair: unanswered tool calls, merged roles and orphan result
   assert.ok(fixed[2].content[0].is_error);
   assert.equal(fixed.at(-1).content.filter(b => b.type === 'tool_result').length, 0, 'orphan result removed');
   assert.equal(fixed.at(-1).content.length, 2, 'consecutive user messages merged');
+  // thinking from earlier turns is dropped (its signature is bound to an older system prompt);
+  // thinking inside the current turn is kept, as the API requires during tool use
+  const withThinking = repairMessages([
+    { role: 'user', content: [{ type: 'text', text: 'turn 1' }] },
+    { role: 'assistant', content: [{ type: 'thinking', thinking: 'old', signature: 's1' }, { type: 'text', text: 'Done.' }] },
+    { role: 'user', content: [{ type: 'text', text: 'turn 2' }] },
+    { role: 'assistant', content: [{ type: 'thinking', thinking: 'now', signature: 's2' }, { type: 'tool_use', id: 't', name: 'get_quote_state', input: {} }] },
+    { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't', content: '{}' }] },
+  ]);
+  assert.deepEqual(withThinking[1].content.map(b => b.type), ['text']);
+  assert.deepEqual(withThinking[3].content.map(b => b.type), ['thinking', 'tool_use']);
+  const onlyThinking = repairMessages([{ role: 'user', content: [{ type: 'text', text: 'a' }] }, { role: 'assistant', content: [{ type: 'redacted_thinking', data: 'x' }] }, { role: 'user', content: [{ type: 'text', text: 'b' }] }]);
+  assert.equal(onlyThinking[1].content[0].type, 'text');
 });
 
 test('a reply cut off at the output limit is answered and the conversation keeps working', async () => {
@@ -214,4 +227,30 @@ test('media allowance is estimated from the scan when no CMS export is verified'
   q.inventory.media.verified = { total: 1234, migrateTotal: 1200, fileName: 'media.csv' };
   assert.equal(proposeQuantities(q).rows.find(r => r.id === 'MIG_MEDIA').proposed, 1200, 'a verified export wins');
   assert.equal(mediaEstimate({}, { migratableUrls: 10 }), null);
+});
+
+test('a rejected thinking signature is stripped and retried once', async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqs-ai5-'));
+  const convo = { messages: [
+    { role: 'user', content: [{ type: 'text', text: 'hi' }] },
+    { role: 'assistant', content: [{ type: 'thinking', thinking: 'x', signature: 'bad' }, { type: 'text', text: 'Hello' }] },
+  ], transcript: [], checkpoints: [] };
+  fs.mkdirSync(path.join(dataDir, 'assistant'), { recursive: true });
+  fs.writeFileSync(path.join(dataDir, 'assistant', 'example-pytorch.json'), JSON.stringify(convo));
+  let calls = 0;
+  const fetchImpl = async (url, opts) => {
+    calls++;
+    const body = JSON.parse(opts.body);
+    const hasThinking = body.messages.some(m => m.content.some?.(b => b.type === 'thinking'));
+    assert.equal(hasThinking, false, 'thinking from an earlier turn is not sent');
+    return { ok: true, status: 200, json: async () => ({ content: [{ type: 'text', text: 'Works.' }], stop_reason: 'end_turn' }) };
+  };
+  const app = createApp({ dataDir, assistant: { enabled: true, apiKey: 'sk-test', model: 'claude-test' }, assistantFetch: fetchImpl });
+  const srv = await new Promise(r => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
+  const call = (m, p, b) => fetch(`http://127.0.0.1:${srv.address().port}${p}`, { method: m, headers: { 'content-type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }).then(r => r.json());
+  try {
+    const j0 = await call('POST', '/api/quotes/example-pytorch/assistant', { text: 'media?' });
+    let j; for (let k = 0; k < 100; k++) { j = await call('GET', `/api/assistant/jobs/${j0.id}`); if (j.status !== 'running') break; await new Promise(r => setTimeout(r, 50)); }
+    assert.equal(j.status, 'done'); assert.equal(j.text, 'Works.'); assert.equal(calls, 1);
+  } finally { srv.close(); }
 });

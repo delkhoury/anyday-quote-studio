@@ -290,6 +290,16 @@ export function repairMessages(messages) {
     out.push(msg);
   }
   while (out.length && out[0].role !== 'user') out.shift();
+  // Thinking blocks are signed against the system prompt they were written under. Earlier turns
+  // may predate a prompt or library change, so keep thinking only within the current turn
+  // (from the latest user message that is not just tool results); the API allows dropping it.
+  let turnStart = 0;
+  for (let i = out.length - 1; i >= 0; i--) if (out[i].role === 'user' && out[i].content.some(b => b.type !== 'tool_result')) { turnStart = i; break; }
+  for (let i = 0; i < turnStart; i++) {
+    const m = out[i]; if (m.role !== 'assistant') continue;
+    m.content = m.content.filter(b => b.type !== 'thinking' && b.type !== 'redacted_thinking');
+    if (!m.content.length) m.content = [{ type: 'text', text: '(continued)' }];
+  }
   for (let i = 0; i < out.length; i++) {
     const m = out[i];
     if (m.role !== 'assistant') continue;
@@ -351,7 +361,15 @@ export function createAssistant({ store, dataDir, config = assistantConfig(), sc
         if (job.ctl.signal.aborted) throw Object.assign(new Error('Stopped'), { code: 'cancelled' });
         job.progress = step === 0 ? 'Reading the brief…' : 'Thinking…';
         c.messages = repairMessages(c.messages);
-        const resp = await callClaude({ apiKey: config.apiKey, model: config.model, system: systemPrompt(ctx.q, { foundations }), messages: c.messages, tools: TOOLS, fetchImpl, signal: job.ctl.signal });
+        const ask = () => callClaude({ apiKey: config.apiKey, model: config.model, system: systemPrompt(ctx.q, { foundations }), messages: c.messages, tools: TOOLS, fetchImpl, signal: job.ctl.signal });
+        let resp;
+        try { resp = await ask(); }
+        catch (e) {
+          if (!/thinking|signature/i.test(e.message)) throw e;
+          // saved reasoning no longer matches; drop it everywhere and retry once
+          c.messages = c.messages.map(m => (m.role !== 'assistant' ? m : { ...m, content: m.content.filter(b => b.type !== 'thinking' && b.type !== 'redacted_thinking').length ? m.content.filter(b => b.type !== 'thinking' && b.type !== 'redacted_thinking') : [{ type: 'text', text: '(continued)' }] }));
+          resp = await ask();
+        }
         c.messages.push({ role: 'assistant', content: resp.content });
         for (const b of resp.content) if (b.type === 'text' && b.text.trim()) reply.text += (reply.text ? '\n\n' : '') + b.text.trim();
         job.usage = { input: (job.usage?.input || 0) + (resp.usage?.input_tokens || 0) + (resp.usage?.cache_read_input_tokens || 0), output: (job.usage?.output || 0) + (resp.usage?.output_tokens || 0) };
