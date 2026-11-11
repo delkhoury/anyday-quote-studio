@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { html, Badge, Field, NumInput, TextInput, toast } from '../ui.js';
 import { summarize, siteKeyOf } from '../../shared/inventory.js';
-import { quoteTypeOf } from '../../shared/quote.js';
+import { isMultiSite } from '../../shared/quote.js';
+import { InsightsCard } from './insights.js';
 import { parseCmsExport } from '../../shared/media.js';
 import { fmtInt, fmtDate } from '../../shared/format.js';
 import { readFileText } from '../api.js';
@@ -16,7 +17,7 @@ export function AnalyseStep({ api, quote, update, replace, health, flush, go }) 
   const canScan = health?.scanner;
   const inv = quote.inventory || {};
   const s = summarize(inv);
-  const multi = quoteTypeOf(quote).sitesStep || (quote.siteGroups || []).length > 1;
+  const multi = isMultiSite(quote);
   const groups = quote.siteGroups?.length ? quote.siteGroups : [{ id: 'main', name: 'Website', samples: [] }];
   const scanned = new Set((inv.scans || []).map(sc => sc.site));
   const targets = [];
@@ -96,6 +97,7 @@ export function AnalyseStep({ api, quote, update, replace, health, flush, go }) 
 
     ${multi && targets.length ? html`<div class="card"><h3>Samples</h3><p class="small muted" style="margin-top:0">${targets.filter(t => t.done).length} of ${targets.length} sample sites analysed. Totals for each site type are extrapolated from its analysed samples in Review.</p>
       <ul class="small" style="padding-left:18px;margin:0">${targets.map(t => html`<li>${t.done ? html`<b>Analysed</b>` : 'Not analysed yet'} · ${t.label}</li>`)}</ul></div>` : null}
+    <${InsightsCard} quote=${quote} compact=${true} />
     <div class="card"><h3>Current inventory</h3>
       ${inv.source ? html`<p class="small" style="margin:0"><b>${inv.source.label}</b> · ${fmtDate(inv.source.date)}${inv.source.type === 'imported_example' ? ' · dated example, not a fresh scan' : ''}${inv.source.partial ? ' · partial scan' : ''}</p>
         <p class="small muted">${fmtInt(s.discovered)} URLs · ${fmtInt(s.needsReview)} need review · ${fmtInt(s.edited)} edited by you${s.statusCounts.new || s.statusCounts.changed ? ` · ${s.statusCounts.new} new, ${s.statusCounts.changed} changed, ${s.statusCounts.not_seen} not seen in the latest scan` : ''}</p>

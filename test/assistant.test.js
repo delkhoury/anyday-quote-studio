@@ -65,12 +65,13 @@ test('assistant builds a quote end to end, applies changes directly, and a turn 
     { tools: [['analyse_website', { url: site, siteType: 'Clinic', maxPages: 40 }]] },
     { tools: [['apply_inventory_quantities', {}]] },
     { tools: [['set_lines', { lines: [
-      { id: 'BASE_CORE_PLATFORM', state: 'included', qty: 1, reason: 'Brief asks for one shared platform for every clinic' },
+      { id: 'BASE_CORE_PLATFORM', state: 'included', qty: 1, reason: 'Brief asks for one shared platform for every clinic', clientText: 'One shared platform, so all 600 clinics launch from the same build.' },
       { id: 'BASE_STD_COMPONENT', state: 'included', qty: 14, reason: 'Fourteen section types counted in the brief' },
       { id: 'BASE_SITE_SEARCH', state: 'optional', reason: 'Not requested; offered' },
       { id: 'BASE_FULL_COMMERCE', state: 'hidden' },
       { id: 'NOT_AN_ITEM', state: 'included', qty: 2 },
     ] }]] },
+    { tools: [['set_requirements', { requirements: [{ text: 'One platform for every clinic', lines: ['BASE_CORE_PLATFORM'] }, { text: 'Site search', lines: ['BASE_SITE_SEARCH'] }, { text: 'Online booking through Zenoti', lines: [] }, { text: 'Photography', status: 'excluded', note: 'Client supplies photos' }] }]] },
     { tools: [['write_proposal', { intro: 'Acme Health needs one platform for 604 sites.', assumptions: ['Clinic page counts come from the reviewed sample site.'], exclusions: ['Photography.'] }], ['set_plan_hours', { rows: [{ id: 'BASE_STD_COMPONENT', perUnit: { dev: 6, design: 2 }, phase: 'Build' }] }]] },
     { tools: [['get_pricing_summary', {}]] },
     body => { const last = body.messages.at(-1).content[0]; assert.equal(last.type, 'tool_result'); const s = JSON.parse(last.content); assert.ok(s.total > 0); return { text: `Built the quote. Total ${s.total} USD. Open question: how many clinics have their own domain?` }; },
@@ -94,6 +95,13 @@ test('assistant builds a quote end to end, applies changes directly, and a turn 
     assert.match(done.text, /Open question/);
     assert.ok(done.steps.find(s => s.tool === 'analyse_website' && s.ok), 'website analysed');
     assert.ok(done.steps.find(s => s.tool === 'set_lines').ok, 'set_lines ran');
+    // the scan result told Claude about the site: CMS, exact counts, integrations, languages
+    const scanReply = requests.map(r => r.messages.at(-1).content?.[0]).find(b => b?.type === 'tool_result' && /"insights"/.test(b.content));
+    const insights = JSON.parse(scanReply.content).insights;
+    assert.match(insights.cms[0], /WordPress/); assert.equal(insights.exactCounts.media, 312);
+    assert.ok(insights.integrations.some(x => /HubSpot/.test(x))); assert.equal(insights.languages.count, 2);
+    const reqReply = requests.map(r => r.messages.at(-1).content?.[0]).find(b => b?.type === 'tool_result' && /uncovered/.test(b.content));
+    assert.deepEqual(JSON.parse(reqReply.content).uncovered, ['Online booking through Zenoti']);
     // the first request carried the brief as a PDF document
     assert.equal(requests[0].messages[0].content[0].type, 'document');
     assert.match(requests[0].system[0].text, /Pricing Library catalogue/);
@@ -105,6 +113,15 @@ test('assistant builds a quote end to end, applies changes directly, and a turn 
     assert.equal(q.lines.BASE_STD_COMPONENT.qty, 14); assert.equal(q.lines.BASE_STD_COMPONENT.aiNote, 'Fourteen section types counted in the brief');
     assert.equal(q.lines.BASE_SITE_SEARCH.state, 'optional'); assert.equal(q.lines.BASE_FULL_COMMERCE.state, 'hidden');
     assert.equal(q.lines.NOT_AN_ITEM, undefined, 'unknown ids are rejected');
+    assert.equal(q.lines.BASE_CORE_PLATFORM.clientNote, 'One shared platform, so all 600 clinics launch from the same build.');
+    assert.equal(q.requirements.length, 4);
+    const { requirementCoverage } = await import('../shared/requirements.js');
+    const { calculateQuote } = await import('../shared/pricing.js');
+    const { renderProposal } = await import('../shared/proposal.js');
+    assert.deepEqual(requirementCoverage(q, calculateQuote(q)).map(r => r.coverage), ['covered', 'optional', 'uncovered', 'excluded']);
+    const doc = renderProposal(q);
+    assert.match(doc, /How this proposal answers the brief/); assert.match(doc, /One shared platform, so all 600 clinics/);
+    assert.ok(!doc.includes('Online booking through Zenoti'), 'uncovered requirements stay out of the proposal');
     assert.equal(q.proposal.intro, 'Acme Health needs one platform for 604 sites.');
     assert.equal(q.plan.rows.BASE_STD_COMPONENT.effort.perUnit.dev, 6);
     assert.ok(q.history.some(h => h.kind === 'assistant'));

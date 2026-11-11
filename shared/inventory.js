@@ -124,6 +124,7 @@ export function mergeScan(inventory, scan, { groupId = 'main' } = {}) {
     scans: [...(inventory?.scans || []), { id: scan.id, rootUrl: scan.rootUrl, site, groupId, startedAt: scan.startedAt, finishedAt: scan.finishedAt, partial: !!scan.partial, coverage: scan.coverage, limits: scan.limits }],
     templates: [...(inventory?.templates || []).filter(t => t.site && t.site !== site), ...(scan.templates || []).map(t => ({ ...t, site, groupId }))],
     media: mergeMedia(inventory?.media, scan.media, site),
+    insights: scan.insights ? { ...(inventory?.insights || {}), [site]: { ...scan.insights, groupId, scanId: scan.id, at: scan.finishedAt } } : (inventory?.insights || {}),
     coverage: scan.coverage,
   };
 }
@@ -212,6 +213,60 @@ export function mediaEstimate(media, pf) {
   return { qty, basis: `Estimated ${fmtInt(qty)} assets: the larger of ${parts.join(' and ')}.`, fromPages, fromSitemap };
 }
 
+// ---------------------------------------------------------------------------
+// Site insights across the scanned sites: CMS, exact CMS counts, integrations, languages,
+// templates and components. A platform shares templates and components, so those take the
+// largest scanned site; volumes (records, media) scale by site type like the inventory.
+// ---------------------------------------------------------------------------
+const PAGE_TYPES = /^(page|pages)$/;
+export function siteInsights(quote) {
+  const all = quote.inventory?.insights || {};
+  const groups = quote.siteGroups?.length ? quote.siteGroups : [{ id: 'main', name: 'Website', count: 1 }];
+  const sites = Object.entries(all).map(([site, i]) => ({ site, ...i, groupId: groups.some(g => g.id === i.groupId) ? i.groupId : groups[0].id }));
+  if (!sites.length) return null;
+  const cms = {}; const integ = {}; let langs = { count: 1, codes: [] };
+  let components = { count: 0, standard: 0, interactive: 0 }; let templates = { count: 0, advanced: 0 }; let compSite = null; let tplSite = null;
+  const recordTypes = new Set();
+  for (const x of sites) {
+    if (x.cms) (cms[x.cms.id] = cms[x.cms.id] || { ...x.cms, sites: [] }).sites.push(x.site);
+    for (const i of x.integrations || []) (integ[i.id] = integ[i.id] || { id: i.id, name: i.name, category: i.category, categoryName: i.categoryName, sites: [] }).sites.push(x.site);
+    if ((x.languages?.count || 1) > langs.count) langs = { count: x.languages.count, codes: x.languages.codes, evidence: x.languages.evidence, site: x.site };
+    if ((x.components?.count || 0) > components.count) { components = x.components; compSite = x.site; }
+    if ((x.templates?.count || 0) > templates.count) { templates = x.templates; tplSite = x.site; }
+    for (const t of x.cmsCounts?.available ? x.cmsCounts.types : []) if (!PAGE_TYPES.test(t.slug) && t.total > 0) recordTypes.add(t.name);
+  }
+  // exact CMS volumes, scaled per site type
+  const withCounts = sites.filter(x => x.cmsCounts?.available);
+  const scaled = f => {
+    let total = 0; let extrapolated = false;
+    for (const g of groups) {
+      const xs = withCounts.filter(x => x.groupId === g.id); if (!xs.length) continue;
+      const n = Math.max(0, Number(g.count) || 0);
+      const vals = xs.map(f).filter(v => Number.isFinite(v));
+      if (!vals.length) continue;
+      if (xs.length >= n) total += vals.reduce((a, b) => a + b, 0);
+      else { total += Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * n); extrapolated = true; }
+    }
+    return { total, extrapolated };
+  };
+  const recordsOf = x => x.cmsCounts.types.filter(t => !PAGE_TYPES.test(t.slug)).reduce((a, t) => a + (t.total || 0), 0);
+  const pagesOf = x => x.cmsCounts.types.filter(t => PAGE_TYPES.test(t.slug)).reduce((a, t) => a + (t.total || 0), 0);
+  const coversAll = groups.every(g => !(Number(g.count) > 0) || withCounts.some(x => x.groupId === g.id));
+  const exact = withCounts.length ? {
+    sites: withCounts.length, coversAll, cms: withCounts[0].cmsCounts.source,
+    records: scaled(recordsOf), pages: scaled(pagesOf), media: scaled(x => x.cmsCounts.media ?? NaN),
+    recordTypes: [...recordTypes],
+    types: withCounts.length === 1 ? withCounts[0].cmsCounts.types : null, taxonomies: withCounts.length === 1 ? withCounts[0].cmsCounts.taxonomies : null,
+  } : null;
+  return {
+    sites: sites.map(x => ({ site: x.site, groupId: x.groupId, cms: x.cms, pagesInspected: x.pagesInspected, components: x.components?.count || 0, templates: x.templates?.count || 0, languages: x.languages?.count || 1, integrations: (x.integrations || []).length, exact: !!x.cmsCounts?.available })),
+    cms: Object.values(cms), integrations: Object.values(integ).sort((a, b) => a.category.localeCompare(b.category)),
+    languages: langs, components: { ...components, site: compSite }, templates: { ...templates, site: tplSite }, exact,
+  };
+}
+
+const BUSINESS_INTEGRATIONS = new Set(['crm', 'newsletter', 'search', 'commerce', 'booking', 'events', 'identity', 'translation']);
+
 export function proposeQuantities(quote) {
   const inv = quote.inventory;
   const s = summarize(inv);
@@ -229,7 +284,7 @@ export function proposeQuantities(quote) {
   const rows = [];
   const push = (id, proposed, basis, assumption, opts = {}) => {
     const item = items[id];
-    if (!item) return;
+    if (!item || rows.some(r => r.id === id)) return;
     const line = lineFor(quote, item);
     const p = effectivePricing(item, line);
     const current = quantityFor(quote, item, line);
@@ -257,11 +312,18 @@ export function proposeQuantities(quote) {
   push('MIG_L3_PAGE', T.L3, `${fmtInt(T.L3)} included URLs classified Level 3${ex}`, `Level 3 page count reflects ${srcLabel}.${exNote}`);
   push('MIG_BULK_STATIC', T.BULK_STATIC, `${fmtInt(T.BULK_STATIC)} included URLs classified bulk static${ex}`, 'Bulk static pages are near identical and are not also charged as composed pages.');
   push('MIG_STRUCTURED_RECORDS', T.RECORD, `${fmtInt(T.RECORD)} included structured records across ${pf.sourceTypeCount} content type${pf.sourceTypeCount === 1 ? '' : 's'}${ex}`, `Structured record volume reflects ${srcLabel}; generated archives are regenerated, not charged per URL.${exNote}`);
-  push('MIG_CONTENT_TYPE_MAP', pf.sourceTypeCount, `${pf.sourceTypeCount} distinct record types observed: ${pf.sourceTypes.slice(0, 8).join(', ')}${pf.sourceTypes.length > 8 ? '…' : ''}`, 'Source content type count is based on publicly observable types and should be confirmed against a CMS export.', { selected: false, note: 'Public sitemaps do not always expose CMS types. Off by default.' });
+  const exactTypes = siteInsights(quote)?.exact;
+  if (exactTypes?.recordTypes?.length) push('MIG_CONTENT_TYPE_MAP', exactTypes.recordTypes.length, `${exactTypes.recordTypes.length} published content types reported by the ${cmsLabel(exactTypes.cms)}: ${exactTypes.recordTypes.slice(0, 8).join(', ')}`, 'Source content types are the published types reported by the site\'s CMS, excluding pages, media and system types.', { note: 'Exact from the CMS, not inferred from the sitemap.' });
+  else push('MIG_CONTENT_TYPE_MAP', pf.sourceTypeCount, `${pf.sourceTypeCount} distinct record types observed: ${pf.sourceTypes.slice(0, 8).join(', ')}${pf.sourceTypes.length > 8 ? '…' : ''}`, 'Source content type count is based on publicly observable types and should be confirmed against a CMS export.', { selected: false, note: 'Public sitemaps do not always expose CMS types. Off by default.' });
   const verified = inv?.media?.verified;
   if (verified && Number.isFinite(verified.migrateTotal ?? verified.total)) {
     const v = verified.migrateTotal ?? verified.total;
     push('MIG_MEDIA', v, `Verified CMS media export: ${fmtInt(v)} assets (${verified.fileName || 'export'})`, 'Media volume is based on the verified CMS media export.');
+  } else if (siteInsights(quote)?.exact?.media?.total > 0) {
+    const ex = siteInsights(quote).exact; const m = ex.media;
+    const line = quote.lines?.MIG_MEDIA || {};
+    const empty = line.qty === undefined || line.qty === null || Number(line.qty) === 0;
+    push('MIG_MEDIA', m.total, `${fmtInt(m.total)} files in the media library, reported by the ${cmsLabel(ex.cms)}${m.extrapolated ? `, extrapolated from ${fmtInt(ex.sites)} scanned site${ex.sites === 1 ? '' : 's'} to ${fmtInt(pf.totalSites)}` : ''}`, `Media volume is the media library total reported by the site's CMS${m.extrapolated ? ', extrapolated from the sampled sites' : ''}. Unused files can be excluded once a CMS media export is reviewed.`, { selected: empty && line.qtySource !== 'manual', editable: true, note: 'From the CMS media library count. This includes files that may no longer be used on any page.' });
   } else {
     const est = mediaEstimate(inv?.media, pf);
     if (est) {
@@ -272,8 +334,53 @@ export function proposeQuantities(quote) {
   }
   const redirectRef = pf.migratableUrls + T.ARCHIVE;
   push('MIG_REDIRECTS', quantityFor(quote, items.MIG_REDIRECTS, lineFor(quote, items.MIG_REDIRECTS)) ?? 0, `Up to ${fmtInt(redirectRef)} included URLs could change. Only URLs whose path changes need a redirect.`, 'Redirect volume is a planning allowance; URLs that keep their path need no redirect.', { selected: false, editable: true, note: 'Set independently. Not derived from the URL count.' });
+  insightRows(quote, push, siteInsights(quote), pf, T, rows);
   if (pf.totalSites > 1) push('MIG_BRAND_CONFIG', pf.totalSites, `One brand configuration per site (${fmtInt(pf.totalSites)} sites)`, 'Each site receives its own brand configuration using the existing global controls.', { selected: false, editable: true, note: 'Lower this if several sites share one brand.' });
   return { rows, summary: s, portfolio: pf };
+}
+
+const cmsLabel = src => src === 'wp-rest' ? 'WordPress REST API' : 'CMS';
+
+// Rows from site insights: exact record cross check, scratch build templates and components,
+// languages and integrations. Only exact or clearly derived figures are selected by default.
+function insightRows(quote, push, si, pf, T, rows) {
+  if (!si) return;
+  const lines = quote.lines || {};
+  const isEmpty = id => { const l = lines[id] || {}; return (l.qty === undefined || l.qty === null || l.qty === '' || Number(l.qty) === 0) && l.qtySource !== 'manual'; };
+  const scratch = ['new_site', 'new_platform'].includes(quote.type);
+  if (scratch) {
+    const recTypes = si.exact?.recordTypes?.length || pf.sourceTypeCount || 0;
+    const adv = si.templates.advanced || 0; const std = Math.max(0, (si.templates.count || 0) - adv) + recTypes;
+    const where = si.templates.site && si.sites.length > 1 ? ` (largest scanned site, ${si.templates.site})` : '';
+    if (std) push('BASE_STD_PAGE_TEMPLATE', std, `${fmtInt(Math.max(0, si.templates.count - adv))} repeated page layouts found by the scan${where}, plus one detail template for each of ${fmtInt(recTypes)} record type${recTypes === 1 ? '' : 's'}`, 'Page template counts come from distinct page structures found on the current site and are confirmed in discovery.', { selected: isEmpty('BASE_STD_PAGE_TEMPLATE'), editable: true, note: 'Layouts shared by two or more pages. One off pages are assembled from components instead.' });
+    if (adv) push('BASE_ADV_PAGE_TEMPLATE', adv, `${fmtInt(adv)} page layout${adv === 1 ? '' : 's'} with six or more section types or used by Level 1 pages`, 'Advanced templates are layouts with many section types or major landing pages.', { selected: isEmpty('BASE_ADV_PAGE_TEMPLATE'), editable: true });
+    const c = si.components;
+    const whereC = c.site && si.sites.length > 1 ? ` on the largest scanned site (${c.site})` : '';
+    if (c.standard) push('BASE_STD_COMPONENT', c.standard, `${fmtInt(c.standard)} distinct static section patterns${whereC}: same section type and shape counted once`, 'Component counts are estimated from distinct section patterns on the current site and are confirmed in discovery.', { selected: isEmpty('BASE_STD_COMPONENT'), editable: true, note: 'An estimate from page structure. Review against the brief before applying.' });
+    if (c.interactive) push('BASE_ADV_COMPONENT', c.interactive, `${fmtInt(c.interactive)} interactive section patterns${whereC} (forms, tabs, accordions, carousels or embeds)`, 'Advanced components are the interactive section patterns found on the current site.', { selected: isEmpty('BASE_ADV_COMPONENT'), editable: true, note: 'An estimate from page structure.' });
+    if (recTypes) push('BASE_STRUCT_CONTENT_MODEL', recTypes, `${fmtInt(recTypes)} record type${recTypes === 1 ? '' : 's'}${si.exact?.recordTypes?.length ? ` reported by the ${cmsLabel(si.exact.cms)}: ${si.exact.recordTypes.slice(0, 6).join(', ')}` : ' observed in the sitemaps'}`, 'Each source record type becomes a structured content model.', { selected: isEmpty('BASE_STRUCT_CONTENT_MODEL'), editable: true });
+  }
+  if (si.exact?.records?.total && si.exact.coversAll) {
+    const r = si.exact.records.total;
+    const row = rows.find(x => x.id === 'MIG_STRUCTURED_RECORDS');
+    if (row && Math.abs(r - T.RECORD) / Math.max(r, 1) > 0.1) {
+      row.basis += `. The ${cmsLabel(si.exact.cms)} reports ${fmtInt(r)} published records${si.exact.records.extrapolated ? ' (extrapolated)' : ''}; the gap is usually records left out of the sitemap or listed as pages`;
+      row.note = `Cross check: the CMS reports ${fmtInt(r)}. Change it in Scope if you want to commit to that figure.`;
+      row.cmsTotal = r;
+    } else if (row) row.basis += `. Matches the ${fmtInt(r)} published records the ${cmsLabel(si.exact.cms)} reports`;
+  }
+  const langs = si.languages?.count || 1;
+  if (langs > 1) push('MIG_LANGUAGE', langs - 1, `${langs} languages found (${(si.languages.codes || []).join(', ')}), so ${langs - 1} additional language${langs - 1 === 1 ? '' : 's'} beyond the first`, `The current site publishes in ${langs} languages; each additional language is configured on the new build.`, { selected: isEmpty('MIG_LANGUAGE'), editable: true, note: si.languages.evidence });
+  const ints = si.integrations || [];
+  const names = cat => ints.filter(i => i.category === cat).map(i => i.name);
+  if (names('analytics').length) push('MIG_ANALYTICS', 1, `Analytics found on the current site: ${names('analytics').join(', ')}`, 'Analytics is reconfigured and validated on the new build.', { selected: false, editable: true, note: 'Detected from page scripts.' });
+  if (scratch) {
+    const biz = ints.filter(i => BUSINESS_INTEGRATIONS.has(i.category));
+    if (biz.length) push('BASE_SHARED_INTEGRATION_NEW', biz.length, `Third party services found on the current site: ${biz.map(i => i.name).join(', ')}`, 'Integrations found on the current site are rebuilt on the new platform unless the brief retires them.', { selected: false, editable: true, note: 'Detected from page scripts. Confirm which ones the client keeps.' });
+  } else {
+    if (names('crm').length) push('MIG_CRM_SETUP', 1, `CRM or marketing automation found: ${names('crm').join(', ')}`, 'The existing CRM connection is set up on the new site.', { selected: false, editable: true, note: 'Detected from page scripts.' });
+    if (names('newsletter').length) push('MIG_NEWSLETTER', 1, `Newsletter platform found: ${names('newsletter').join(', ')}`, 'The newsletter sign up is connected on the new site.', { selected: false, editable: true, note: 'Detected from page scripts.' });
+  }
 }
 
 export function applyProposals(quote, rows, { at = new Date().toISOString() } = {}) {

@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'preact/hooks';
 import { html, Badge, Modal, NumInput, TextInput, toast } from '../ui.js';
 import { summarize, effective, groupOf, portfolioSummary, CATEGORIES, CATEGORY_BY_ID, proposeQuantities, applyProposals } from '../../shared/inventory.js';
-import { quoteTypeOf } from '../../shared/quote.js';
+import { isMultiSite } from '../../shared/quote.js';
+import { InsightsCard } from './insights.js';
 import { fmtInt, fmtMoney } from '../../shared/format.js';
 import { priceForQuantity, pricedFrom, effectivePricing } from '../../shared/pricing.js';
 
@@ -11,7 +12,7 @@ export function ReviewStep({ api, quote, update, flush }) {
   const inv = quote.inventory || { entries: [] };
   const entries = inv.entries || [];
   const groups = quote.siteGroups?.length ? quote.siteGroups : [{ id: 'main', name: 'Website' }];
-  const multi = quoteTypeOf(quote).sitesStep || groups.length > 1;
+  const multi = isMultiSite(quote);
   const [f, setF] = useState({ q: '', cat: '', inc: '', status: '', review: '', type: '', group: '' });
   const s = useMemo(() => summarize(inv, f.group ? { groupId: f.group, groups } : {}), [inv, f.group]);
   const pf = useMemo(() => portfolioSummary(quote), [quote]);
@@ -60,6 +61,7 @@ export function ReviewStep({ api, quote, update, flush }) {
 
   return html`<div class="stack">
     ${multi ? html`<${PortfolioCard} pf=${pf} quote=${quote} action=${applyBtn} />` : null}
+    <${InsightsCard} quote=${quote} />
     <div class="card">
       <div class="spread"><h2>${multi ? 'Sample site analysis' : 'Website analysis'}</h2>
         <div class="row"><button class="btn small" onClick=${async () => { await flush(); api.exportCsv(quote); }}>Export URL inventory (CSV)</button>

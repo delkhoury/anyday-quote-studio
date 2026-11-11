@@ -4,7 +4,8 @@
 
 import { calculateQuote, describePricing, blockTreatmentCounts } from './pricing.js';
 import { summarize, portfolioSummary, CATEGORIES, effective, CATEGORY_BY_ID } from './inventory.js';
-import { quoteTypeOf } from './quote.js';
+import { isMultiSite } from './quote.js';
+import { requirementCoverage, COVERAGE_LABEL } from './requirements.js';
 import { fmtMoney, fmtInt, escapeHtml as h, fmtDate, plural } from './format.js';
 
 // Anyday brand (October 2026): pure black, pure white, #A10E15 accent. Headings in MD Lorien,
@@ -87,6 +88,9 @@ td .name { font-weight: 600; }
 td .desc { color: var(--muted); font-size: 7.8pt; margin-top: 1pt; }
 td .note { color: var(--accent); font-size: 7.4pt; font-weight: 500; margin-top: 2pt; }
 td .blocks { font-size: 7.4pt; color: var(--muted); margin-top: 3pt; }
+td .for-you { font-size: 7.8pt; margin-top: 3pt; padding-left: 6pt; border-left: 1.2pt solid var(--accent); }
+table.reqs td { font-size: 8.4pt; }
+table.reqs td:nth-child(2) { color: var(--muted); width: 38%; }
 tr.subtotal td { font-weight: 700; border-top: 0.8pt solid var(--black); border-bottom: 0; }
 tr.subtotal.design td { font-weight: 600; border-top: 0.6pt solid var(--black); background: var(--wash); }
 tr.grouphead td { font: 600 6pt 'Inter'; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); padding: 10pt 8pt 4pt; border-bottom: 0.6pt solid var(--black); }
@@ -170,7 +174,7 @@ function lineRow(l, calc, quote, byId) {
     extra += `<div class="blocks">${l.result.breakdown.map(b => h(b.label)).join(' · ')}</div>`;
   }
   return `<tr>
-    <td><div class="name">${h(l.item.name)}</div><div class="desc">${h(l.item.receives || l.item.what || '')}</div>${extra}${notes.map(n => `<div class="note">${n}</div>`).join('')}</td>
+    <td><div class="name">${h(l.item.name)}</div><div class="desc">${h(l.item.receives || l.item.what || '')}</div>${l.line?.clientNote ? `<div class="for-you">${h(l.line.clientNote)}</div>` : ''}${extra}${notes.map(n => `<div class="note">${n}</div>`).join('')}</td>
     <td class="num">${qtyLabel(l)}</td>
     <td class="num">${rateLabel(l)}</td>
     <td class="num">${amountLabel(l)}</td>
@@ -179,7 +183,7 @@ function lineRow(l, calc, quote, byId) {
 
 const HEAD = `<thead><tr><th>Scope</th><th class="num">Quantity</th><th class="num">Rate</th><th class="num">Investment</th></tr></thead>`;
 
-export function isPortfolio(quote) { return !!quoteTypeOf(quote).sitesStep || (quote.siteGroups || []).length > 1; }
+export function isPortfolio(quote) { return isMultiSite(quote); }
 
 function snapshotHtml(quote, calc) {
   const inv = quote.inventory;
@@ -232,7 +236,7 @@ function snapshotHtml(quote, calc) {
   if (rc && rc.state === 'included') {
     const f = quote.foundation;
     const tc = blockTreatmentCounts(quote);
-    if (quote.type === 'new_platform') compRow = `<tr><td class="cat"><div class="name">Components designed</div><div class="desc">Each reusable component is designed once and used across every site${f && tc.redesign ? `, including ${fmtInt(tc.redesign)} redesigned from ${h(f.name)}` : ''}.</div></td><td class="num muted">n/a</td><td class="num">${fmtInt(rc.qty || 0)}</td></tr>`;
+    if (quote.type === 'new_platform' || quote.type === 'new_site') compRow = `<tr><td class="cat"><div class="name">Components designed</div><div class="desc">Each reusable component is designed once and used ${quote.type === 'new_site' ? 'wherever it appears on the site' : 'across every site'}${f && tc.redesign ? `, including ${fmtInt(tc.redesign)} redesigned from ${h(f.name)}` : ''}.</div></td><td class="num muted">n/a</td><td class="num">${fmtInt(rc.qty || 0)}</td></tr>`;
     else if (f) compRow = `<tr><td class="cat"><div class="name">Existing ${h(f.name)} components redesigned</div><div class="desc">Counted once, however often a component appears. Other components receive brand application only.</div></td><td class="num">${fmtInt(f.components.length)} in library</td><td class="num">${fmtInt(tc.redesign)}</td></tr>`;
   }
   const sourceLabel = portfolio ? 'Across the portfolio' : 'On the current site';
@@ -255,12 +259,18 @@ export function suggestedIntro(quote, calc = calculateQuote(quote)) {
   const recTypes = Object.keys(pf.recordsByType).slice(0, 3).map(t => t.toLowerCase());
   const records = recTypes.length ? `${recTypes.join(', ')} and other records` : 'records';
   const designN = calc.lines.find(l => l.item.quantitySource === 'component_design_count' && l.state === 'included')?.qty;
+  if (quote.type === 'new_site') {
+    return `${client} needs a new website${quote.project?.url ? ` to replace ${site}` : ''}. Anyday will design and build it from scratch: a library of reusable components${designN ? ` (${fmtInt(designN)} designed in this proposal)` : ''}, page templates, structured content models and brand controls, so the team can publish and grow the site without starting again for each page.${quote.project?.url ? `\n\nAnyday will then migrate the current site's pages, ${records}, media and URLs onto the new build.` : ''}`;
+  }
   if (quote.type === 'new_platform') {
     return `${client} needs one platform for ${pf.totalSites > 1 ? `${fmtInt(pf.totalSites)} websites` : 'its website'}. Anyday will build a shared multisite platform${f ? `, starting from ${f.name}` : ''}: a library of reusable components${designN ? ` (${fmtInt(designN)} designed in this proposal)` : ''}, structured content models and brand controls, so every site launches from the same foundation and stays consistent.\n\nAnyday will then roll the sites onto it, migrating their pages, ${records}, media and URLs.${pf.groups.length > 1 ? ` Sites are grouped into ${pf.groups.length} site types, and migration volumes are based on ${pf.groups.some(g => g.source === 'scan') ? 'reviewed samples of each type' : 'typical figures for each type'}.` : ''}`;
   }
   if (quote.type === 'expansion') {
     const live = quote.portfolio?.existingLiveSites || 0;
     return `${client} is adding ${fmtInt(pf.totalSites)} site${pf.totalSites === 1 ? '' : 's'} to the ${f?.name || 'existing'} platform${live ? `, which already runs ${fmtInt(live)} live site${live === 1 ? '' : 's'}` : ''}. No new platform build is needed: each new site reuses the existing components, content models and integrations.\n\nAnyday will configure each site's brand and migrate its pages, ${records}, media and URLs. Site activation continues from the volume already reached.`;
+  }
+  if (pf.totalSites > 1) {
+    return `${client} wants to bring ${fmtInt(pf.totalSites)} websites onto ${f ? `${f.name}, the platform foundation Anyday built${f.owner ? ` for ${f.owner}` : ''}` : 'an existing Anyday platform foundation'}. This proposal reuses that foundation: its component library, content models and integrations, so no new core platform is built. Each site gets its own brand configuration and its pages, ${records}, media and URLs are migrated.${pf.groups.length > 1 ? ` Sites are grouped into ${pf.groups.length} site types, and migration volumes are based on ${pf.groups.some(g => g.source === 'scan') ? 'reviewed samples of each type' : 'typical figures for each type'}.` : ''}`;
   }
   return `${client} wants to move ${site} onto ${f ? `${f.name}, the platform foundation Anyday built${f.owner ? ` for ${f.owner}` : ''}` : 'an existing Anyday platform foundation'}. This proposal reuses that foundation: its component library, content models and integrations.\n\nAnyday will apply the ${client} brand, redesign the selected components, and migrate the site's pages, ${records}, media and URLs.`;
 }
@@ -277,6 +287,14 @@ export function allAssumptions(quote, calc) {
   return [...new Set(list.map(s => s.trim()).filter(Boolean))];
 }
 
+// The brief's requirements in the client's words, each traced to what is priced.
+function requirementsHtml(quote, calc) {
+  const reqs = requirementCoverage(quote, calc).filter(r => r.coverage !== 'uncovered' || quote.proposal?.showUncovered);
+  if (!reqs.length) return '';
+  const rows = reqs.map(r => `<tr><td><div class="name">${h(r.text)}</div>${r.note ? `<div class="desc">${h(r.note)}</div>` : ''}</td><td>${h([...r.included, ...r.optional.map(x => `${x} (optional)`)].join(' · ') || '')}</td><td class="num">${h(COVERAGE_LABEL[r.coverage])}</td></tr>`).join('');
+  return `<div class="block">${head('Your requirements', 'How this proposal answers the brief', 'Each requirement from the brief, and where it is priced.')}<table class="reqs"><thead><tr><th>Requirement</th><th>Answered by</th><th class="num">Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
 export const APPENDIX_MAX_ROWS = 2000;
 
 export function renderProposal(quote, opts = {}) {
@@ -287,7 +305,7 @@ export function renderProposal(quote, opts = {}) {
   const byId = Object.fromEntries(calc.lines.map(l => [l.id, l]));
   const pr = quote.proposal || {};
   const client = quote.client?.name || 'Client';
-  const project = quote.project?.name || ({ new_platform: 'Platform implementation and rollout', expansion: 'Platform expansion' }[quote.type] || 'Website implementation');
+  const project = quote.project?.name || ({ new_platform: 'Platform implementation and rollout', expansion: 'Platform expansion', new_site: 'New website' }[quote.type] || 'Website implementation');
   const date = quoteDate || quote.issuedAt || quote.updatedAt || new Date().toISOString();
   const visibleSections = calc.sections.filter(s => !s.empty);
 
@@ -372,6 +390,7 @@ export function renderProposal(quote, opts = {}) {
 ${draftNote}
 ${introHtml}
 <div class="block">${isPortfolio(quote) ? head('Portfolio scope snapshot', 'What we found, and what is included', 'The sites in scope, and the content across them compared with the scope priced in this proposal.') : head('Website scope snapshot', 'What we found, and what is included', 'The current site compared with the scope priced in this proposal.')}${snapshotHtml(quote, calc)}</div>
+${requirementsHtml(quote, calc)}
 <div class="block newpage">${head('Investment', 'Investment summary', 'Implementation is priced on the volume and complexity of design, migration, integrations and functionality required.')}<table class="summary-table"><thead><tr><th>Section</th><th class="num">Investment</th></tr></thead><tbody>${summaryRows}</tbody></table>${totalBand}</div>
 ${sectionHtml}
 <div class="block">${totalBand}</div>

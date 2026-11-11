@@ -10,16 +10,17 @@ import { InvestmentStep } from './investment.js';
 import { SitesStep } from './sites.js';
 import { PlanStep } from './plan.js';
 import { AssistantPanel } from './assistant.js';
-import { quoteTypeOf, quoteTypes } from '../../shared/quote.js';
+import { quoteTypeOf, quoteTypes, isMultiSite, plannedSites, STARTING_POINTS, startingPointOf, typeFor } from '../../shared/quote.js';
 
 // The steps depend on the quote type: portfolios get a Sites step and analyse samples.
 export function stepsFor(quote) {
   const t = quoteTypeOf(quote);
+  const multi = isMultiSite(quote);
   return [
     { id: 'setup', t: 'Setup', s: t.name },
-    ...(t.sitesStep ? [{ id: 'sites', t: 'Sites', s: 'Site types, counts, samples' }] : []),
-    { id: 'analyse', t: t.sitesStep ? 'Analyse samples' : 'Analyse website', s: 'Sitemaps, pages and media' },
-    { id: 'review', t: 'Review', s: t.sitesStep ? 'Inventory and portfolio totals' : 'Confirm classifications' },
+    ...(multi ? [{ id: 'sites', t: 'Sites', s: 'Site types, counts, samples' }] : []),
+    { id: 'analyse', t: multi ? 'Analyse samples' : 'Analyse website', s: 'Sitemaps, pages and media' },
+    { id: 'review', t: 'Review', s: multi ? 'Inventory and portfolio totals' : 'Confirm classifications' },
     { id: 'scope', t: 'Scope', s: 'Implementation, design, migration' },
     { id: 'plan', t: 'Plan', s: 'Internal: hours, team, timeline' },
     { id: 'investment', t: 'Investment', s: 'Proposal preview and export' },
@@ -142,21 +143,29 @@ function SetupStep({ api, quote, update, replace, library, flush }) {
         <${Field} label="Client"><${TextInput} value=${quote.client?.name} onChange=${v => set('client.name', v)} placeholder="Organisation name" /><//>
         <${Field} label="Parent organisation" hint="The organisation the client belongs to, if any."><${TextInput} value=${quote.client?.parentOrg} onChange=${v => set('client.parentOrg', v)} /><//>
         <${Field} label="Project"><${TextInput} value=${quote.project?.name} onChange=${v => set('project.name', v)} placeholder="Project name" /><//>
-        <${Field} label=${type.sitesStep ? 'Main website URL (optional)' : 'Website URL'} hint=${type.sitesStep ? 'Sample sites for each site type are set in Sites.' : 'Used by Analyse website. Subdomains and external sites stay separate unless you include them.'}><${TextInput} value=${quote.project?.url} onChange=${v => set('project.url', v.trim())} placeholder="https://example.org" /><//>
+        <${Field} label=${isMultiSite(quote) ? 'Main website URL (optional)' : 'Website URL'} hint=${isMultiSite(quote) ? 'Sample sites for each site type are set in Sites.' : 'Used by Analyse website. Subdomains and external sites stay separate unless you include them.'}><${TextInput} value=${quote.project?.url} onChange=${v => set('project.url', v.trim())} placeholder="https://example.org" /><//>
         <${Field} label="Client contact (internal)"><${TextInput} value=${quote.client?.contact} onChange=${v => set('client.contact', v)} placeholder="Name, email" /><//>
         <${Field} label="Prepared by"><${TextInput} value=${quote.preparedBy} onChange=${v => set('preparedBy', v)} /><//>
         <${Field} label="Quote number"><input class="input" value=${quote.number || 'Assigned on save'} disabled /><//>
       </div>
     </div>
-    <div class="card"><div class="spread"><h2>Quote type</h2><${Badge} kind="accent">${type.name}<//></div>
+    <div class="card"><div class="spread"><h2>Starting point and sites</h2><${Badge} kind="accent">${type.name}<//></div>
       <p class="small">${type.description}</p>
-      <${Field} label="Change the type" hint="Changes the steps and the proposal wording. Lines and quantities already chosen are kept; adjust them in Scope.">
-        <select class="input" style="max-width:420px" value=${quote.type} onChange=${e => update(q => ({ ...q, type: e.target.value }))}>${quoteTypes(snap).map(t => html`<option value=${t.id} disabled=${t.usesFoundation === 'required' && !quote.foundation}>${t.name}${t.usesFoundation === 'required' && !quote.foundation ? ' (needs a foundation)' : ''}</option>`)}</select><//>
+      <div class="grid2">
+        <${Field} label="Where the build starts" hint="Changes the steps and the proposal wording. Lines and quantities already chosen are kept; adjust them in Scope.">
+          <select class="input" value=${startingPointOf(quote.type)} onChange=${e => { const id = typeFor(e.target.value, isMultiSite(quote)); update(q => ({ ...q, type: id })); }}>
+            ${STARTING_POINTS.map(sp => { const tt = quoteTypes(snap).find(x => x.id === typeFor(sp.id, isMultiSite(quote))); const blocked = tt?.usesFoundation === 'required' && !quote.foundation; return html`<option value=${sp.id} disabled=${blocked || !tt}>${sp.name}${blocked ? ' (needs a foundation)' : ''}</option>`; })}</select><//>
+        <div class="field"><span>Websites</span>
+          <div class="row" style="gap:8px"><b>${plannedSites(quote) || 1}</b><span class="small muted">${plannedSites(quote) === 1 ? 'website' : 'websites'}</span>
+            ${!isMultiSite(quote) ? html`<button class="btn small" onClick=${() => update(q => ({ ...q, type: q.type === 'new_site' ? 'new_platform' : q.type, siteGroups: (q.siteGroups || []).map((g, i) => i === 0 ? { ...g, count: Math.max(2, Number(g.count) || 0), name: g.name === 'Website' ? 'Site type 1' : g.name } : g) }))}>Make it several</button>` : null}
+            ${quote.type === 'new_platform' && (quote.siteGroups || []).length <= 1 && plannedSites(quote) <= 5 ? html`<button class="btn small" onClick=${() => update(q => ({ ...q, type: 'new_site', siteGroups: (q.siteGroups || []).map(g => ({ ...g, count: 1, name: g.name === 'Site type 1' ? 'Website' : g.name })) }))}>Price as one website</button>` : null}</div>
+          <div class="tiny muted" style="margin-top:4px">${isMultiSite(quote) ? 'Set site types and counts in the Sites step.' : 'Make it several to group sites into site types and sample them.'}</div></div>
+      </div>
     </div>
     <div class="card"><div class="spread"><h2>Foundation</h2>${quote.foundation ? (fChanged ? html`<${Badge} kind="warn">Foundation has changed<//>` : html`<${Badge} kind="ok">Up to date<//>`) : html`<${Badge}>None<//>`}</div>
-      ${quote.foundation ? html`<p class="small">This quote ${quote.type === 'new_platform' ? 'starts from' : 'reuses'} <b>${quote.foundation.name}</b>${quote.foundation.owner ? ` (${quote.foundation.owner})` : ''}: ${quote.foundation.components.length} components, ${(quote.foundation.integrations || []).length} integrations. It keeps its own snapshot taken ${fmtDate(quote.foundation.takenAt)}. Component choices are made in Scope.</p>
+      ${quote.foundation ? html`<p class="small">This quote ${['new_platform', 'new_site'].includes(quote.type) ? 'starts from' : 'reuses'} <b>${quote.foundation.name}</b>${quote.foundation.owner ? ` (${quote.foundation.owner})` : ''}: ${quote.foundation.components.length} components, ${(quote.foundation.integrations || []).length} integrations. It keeps its own snapshot taken ${fmtDate(quote.foundation.takenAt)}. Component choices are made in Scope.</p>
         <button class="btn" disabled=${!fChanged} onClick=${() => reviewF(quote.foundation.id)}>Refresh from the current foundation</button>`
-        : html`<p class="small">${type.usesFoundation === 'required' ? 'This quote type needs a foundation. Choose one below.' : 'A new platform built from scratch. You can start from an existing foundation if Anyday is reusing one.'}</p>`}
+        : html`<p class="small">${type.usesFoundation === 'required' ? 'This quote type needs a foundation. Choose one below.' : type.usesFoundation === 'none' ? 'Built from scratch, with nothing reused. Choosing a foundation switches the starting point to an existing foundation.' : 'A new platform built from scratch. You can start from an existing foundation if Anyday is reusing one.'}</p>`}
       <div class="row wrap" style="margin-top:10px"><select class="input" style="max-width:360px" value=${pickF} onChange=${e => setPickF(e.target.value)} aria-label="Foundation">
         <option value="">${quote.foundation ? 'Switch to another foundation…' : 'Choose a foundation…'}</option>
         ${(foundations || []).filter(f => !f.archived && f.id !== quote.foundation?.id).map(f => html`<option value=${f.id}>${f.name}</option>`)}</select>

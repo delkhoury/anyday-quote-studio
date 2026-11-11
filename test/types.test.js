@@ -94,7 +94,7 @@ test('migration: a version 1 AAIF quote becomes a foundation site quote with ide
   const v1 = read('./fixtures/v1-quote-pytorch.json');
   const before = calculateQuote(v1);
   const lib2 = migrateLibrary(read('./fixtures/v1-library.json'), library);
-  assert.equal(lib2.schemaVersion, 2); assert.ok(lib2.quoteTypes.length === 3);
+  assert.equal(lib2.schemaVersion, 2); assert.ok(lib2.quoteTypes.length === 4);
   assert.ok(lib2.items.find(i => i.id === 'DESIGN_COMPONENTS') && !lib2.items.find(i => i.id === 'DESIGN_EXISTING_BLOCKS'));
   const v2 = migrateQuote(v1, lib2);
   assert.equal(v2.schemaVersion, 2); assert.equal(v2.type, 'foundation_site');
@@ -150,4 +150,81 @@ test('site list CSV: header detection, quoted cells, dedupe, and site types with
   assert.equal(sites[0].name, 'Clinic, North'); assert.equal(sites[0].url, 'https://clinic-n.example');
   const groups = applySiteList([{ id: 'main', name: 'Site type 1', count: 1, samples: [] }], sites);
   assert.deepEqual(groups.map(g => [g.name, g.count, g.samples.length]), [['Clinic', 2, 2], ['Regional hub', 1, 1]]);
+});
+
+test('single site and site counts: starting point and number of sites decide the type and the steps', async () => {
+  const { typeFor, isMultiSite, plannedSites } = await import('../shared/quote.js');
+  assert.equal(typeFor('scratch', false), 'new_site');
+  assert.equal(typeFor('scratch', true), 'new_platform');
+  assert.equal(typeFor('foundation', true), 'foundation_site');
+  assert.equal(typeFor('live', false), 'expansion');
+  const one = newQuote(library, null, { type: 'new_site', client: 'Acme', url: 'https://acme.example' });
+  assert.equal(one.lines.BASE_CORE_PLATFORM.state, 'included');
+  assert.equal(one.lines.MIG_SITE_ACTIVATION.qty, 1);
+  assert.equal(one.lines.MIG_BRAND_CONFIG.state, 'hidden');
+  assert.equal(isMultiSite(one), false);
+  assert.equal(one.siteGroups[0].name, 'Website');
+  assert.match(one.proposal.assumptions[0], /one website from scratch/);
+  // a foundation quote for many sites behaves like a portfolio
+  const many = newQuote(library, aaif, { type: 'foundation_site', sites: 30 });
+  assert.equal(plannedSites(many), 30);
+  assert.equal(isMultiSite(many), true);
+  assert.equal(many.lines.MIG_SITE_ACTIVATION.qty, 30);
+  assert.equal(many.lines.MIG_BRAND_CONFIG.qty, 30);
+  assert.ok(many.proposal.assumptions.some(a => /extrapolated/.test(a)));
+  // component design on a scratch site counts the components being built
+  const { componentDesignCount } = await import('../shared/pricing.js');
+  one.lines.BASE_STD_COMPONENT = { state: 'included', qty: 9 };
+  assert.equal(componentDesignCount(one), 9);
+  // reusing a foundation turns a scratch site into a foundation site
+  assert.equal(applyFoundation(one, aaif).type, 'foundation_site');
+  const { suggestedIntro } = await import('../shared/proposal.js');
+  assert.match(suggestedIntro(one), /new website to replace acme\.example/);
+});
+
+test('library upgrade adds new quote types and their presets without touching prices', async () => {
+  const { upgradeLibrary } = await import('../shared/migrate.js');
+  const old = JSON.parse(JSON.stringify(library));
+  old.quoteTypes = old.quoteTypes.filter(t => t.id !== 'new_site');
+  for (const it of old.items) { delete it.presets?.new_site; }
+  old.items.find(i => i.id === 'MIG_L1_PAGE').pricing.unitPrice = 123456;
+  const up = upgradeLibrary(old, library);
+  assert.equal(up.changed, true);
+  assert.equal(up.lib.quoteTypes[0].id, 'new_site');
+  assert.equal(up.lib.items.find(i => i.id === 'BASE_CORE_PLATFORM').presets.new_site.state, 'included');
+  assert.equal(up.lib.items.find(i => i.id === 'MIG_L1_PAGE').pricing.unitPrice, 123456);
+  assert.equal(upgradeLibrary(up.lib, library).changed, false);
+});
+
+test('site insights: exact CMS counts, scratch templates and components, languages, integrations', () => {
+  const q = newQuote(library, null, { type: 'new_site', url: 'https://acme.example' });
+  const entries = [
+    ...Array.from({ length: 4 }, (_, i) => ({ url: `https://acme.example/p${i}`, findings: { category: 'L2', include: true, confidence: 'high', contentType: 'Page' } })),
+    ...Array.from({ length: 30 }, (_, i) => ({ url: `https://acme.example/news/n${i}`, findings: { category: 'RECORD', include: true, confidence: 'high', contentType: 'News' } })),
+  ];
+  const insights = {
+    pagesInspected: 10, cms: { id: 'wordpress', name: 'WordPress', confidence: 'high' },
+    integrations: [{ id: 'ga4', name: 'Google Analytics', category: 'analytics' }, { id: 'hubspot_tracking', name: 'HubSpot', category: 'crm' }, { id: 'calendly', name: 'Calendly', category: 'booking' }],
+    languages: { codes: ['en', 'fr'], count: 2, evidence: 'hreflang' },
+    components: { count: 14, standard: 10, interactive: 4 }, templates: { count: 5, advanced: 1 },
+    cmsCounts: { source: 'wp-rest', available: true, types: [{ slug: 'page', name: 'Pages', total: 4 }, { slug: 'post', name: 'News', total: 60 }, { slug: 'event', name: 'Events', total: 0 }], media: 900, taxonomies: [] },
+  };
+  const inv = mergeScan(q.inventory, { id: 's1', rootUrl: 'https://acme.example/', entries, insights, finishedAt: '2026-11-01' });
+  const qq = { ...q, inventory: inv };
+  const rows = Object.fromEntries(proposeQuantities(qq).rows.map(r => [r.id, r]));
+  assert.equal(rows.MIG_MEDIA.proposed, 900);
+  assert.match(rows.MIG_MEDIA.basis, /WordPress REST API/);
+  assert.equal(rows.MIG_CONTENT_TYPE_MAP.proposed, 1); // Events has no published items
+  assert.equal(rows.MIG_STRUCTURED_RECORDS.proposed, 30);
+  assert.match(rows.MIG_STRUCTURED_RECORDS.note, /reports 60/);
+  assert.equal(rows.BASE_STD_PAGE_TEMPLATE.proposed, 5); // 4 standard layouts + 1 record detail template
+  assert.equal(rows.BASE_ADV_PAGE_TEMPLATE.proposed, 1);
+  assert.equal(rows.BASE_STD_COMPONENT.proposed, 10);
+  assert.equal(rows.BASE_ADV_COMPONENT.proposed, 4);
+  assert.equal(rows.BASE_STD_COMPONENT.selected, true);
+  assert.equal(rows.MIG_LANGUAGE.proposed, 1);
+  assert.equal(rows.BASE_SHARED_INTEGRATION_NEW.proposed, 2);
+  assert.equal(rows.BASE_SHARED_INTEGRATION_NEW.selected, false);
+  assert.equal(rows.MIG_ANALYTICS.selected, false);
+  assert.equal(new Set(proposeQuantities(qq).rows.map(r => r.id)).size, proposeQuantities(qq).rows.length, 'one row per line');
 });

@@ -2,6 +2,13 @@
  "schemaVersion": 2,
  "quoteTypes": [
   {
+   "id": "new_site",
+   "name": "New website from scratch",
+   "description": "Design and build one website from scratch, with nothing reused from an existing platform.",
+   "usesFoundation": "none",
+   "sitesStep": false
+  },
+  {
    "id": "new_platform",
    "name": "New platform and rollout",
    "description": "Build a new multisite platform from scratch, then roll out the portfolio of sites onto it.",
@@ -91,6 +98,10 @@
     },
     "expansion": {
      "state": "hidden"
+    },
+    "new_site": {
+     "state": "included",
+     "qty": 1
     }
    }
   },
@@ -121,6 +132,9 @@
    "isDesign": false,
    "presets": {
     "new_platform": {
+     "state": "included"
+    },
+    "new_site": {
      "state": "included"
     }
    }
@@ -180,6 +194,9 @@
    "presets": {
     "new_platform": {
      "state": "included"
+    },
+    "new_site": {
+     "state": "included"
     }
    }
   },
@@ -238,6 +255,9 @@
    "presets": {
     "new_platform": {
      "state": "included"
+    },
+    "new_site": {
+     "state": "included"
     }
    }
   },
@@ -276,6 +296,10 @@
     },
     "expansion": {
      "state": "hidden"
+    },
+    "new_site": {
+     "state": "included",
+     "qty": 1
     }
    }
   },
@@ -1347,6 +1371,10 @@
     },
     "expansion": {
      "state": "included"
+    },
+    "new_site": {
+     "state": "included",
+     "qty": 1
     }
    }
   },
@@ -1383,6 +1411,9 @@
      "state": "included"
     },
     "expansion": {
+     "state": "included"
+    },
+    "new_site": {
      "state": "included"
     }
    }
@@ -1421,6 +1452,9 @@
     },
     "expansion": {
      "state": "included"
+    },
+    "new_site": {
+     "state": "included"
     }
    }
   },
@@ -1457,6 +1491,9 @@
      "state": "included"
     },
     "expansion": {
+     "state": "included"
+    },
+    "new_site": {
      "state": "included"
     }
    }
@@ -1542,6 +1579,9 @@
     },
     "expansion": {
      "state": "included"
+    },
+    "new_site": {
+     "state": "included"
     }
    }
   },
@@ -1578,6 +1618,9 @@
      "state": "included"
     },
     "expansion": {
+     "state": "included"
+    },
+    "new_site": {
      "state": "included"
     }
    }
@@ -1626,6 +1669,9 @@
     },
     "expansion": {
      "state": "included"
+    },
+    "new_site": {
+     "state": "included"
     }
    }
   },
@@ -1673,6 +1719,9 @@
     },
     "expansion": {
      "state": "included"
+    },
+    "new_site": {
+     "state": "included"
     }
    }
   },
@@ -1711,6 +1760,10 @@
      "qty": 1
     },
     "expansion": {
+     "state": "included",
+     "qty": 1
+    },
+    "new_site": {
      "state": "included",
      "qty": 1
     }
@@ -2056,6 +2109,9 @@
     },
     "expansion": {
      "state": "included"
+    },
+    "new_site": {
+     "state": "hidden"
     }
    }
   },
@@ -2448,6 +2504,10 @@
     "foundation_site": {
      "state": "included",
      "qty": 1
+    },
+    "new_site": {
+     "state": "included",
+     "qty": 1
     }
    }
   },
@@ -2482,6 +2542,9 @@
      "state": "included"
     },
     "foundation_site": {
+     "state": "included"
+    },
+    "new_site": {
      "state": "included"
     }
    }
@@ -2518,6 +2581,9 @@
     },
     "foundation_site": {
      "state": "included"
+    },
+    "new_site": {
+     "state": "included"
     }
    }
   },
@@ -2552,6 +2618,9 @@
      "state": "included"
     },
     "foundation_site": {
+     "state": "included"
+    },
+    "new_site": {
      "state": "included"
     }
    }

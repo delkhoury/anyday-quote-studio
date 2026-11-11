@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { newQuote, duplicateQuote, validateQuoteShape, validateLibraryShape, cryptoId, emptyFoundation, quoteTypes } from '../shared/quote.js';
-import { migrateQuote, migrateLibrary, catalogueToFoundation } from '../shared/migrate.js';
+import { migrateQuote, migrateLibrary, upgradeLibrary, catalogueToFoundation } from '../shared/migrate.js';
 import { emptyTeam, ROLE_IDS } from '../shared/plan.js';
 import { DEFAULT_SETTINGS } from '../shared/margin.js';
 
@@ -30,6 +30,10 @@ export function createStore({ dataDir, root }) {
   const defaults = readJson(path.join(root, 'shared/library-default.json'));
   const firstRun = !fs.existsSync(libFile);
   migrateDataDir({ dataDir, dirs, libFile, legacyCatFile, defaults });
+  if (fs.existsSync(libFile)) {
+    const up = upgradeLibrary(readJson(libFile), defaults);
+    if (up.changed) { atomicWriteJson(libFile, up.lib); console.log(`Library: added quote types ${up.added.join(', ')}`); }
+  }
   for (const d of [dataDir, ...Object.values(dirs)]) fs.mkdirSync(d, { recursive: true });
 
   // first run: seed the library, the foundations and the LF example quotes
@@ -169,7 +173,8 @@ export function createStore({ dataDir, root }) {
     createQuote(fields) {
       const lib = readJson(libFile);
       const type = quoteTypes(lib).find(t => t.id === fields.type) || quoteTypes(lib).find(t => t.id === (fields.foundationId ? 'foundation_site' : 'new_platform'));
-      const foundation = fields.foundationId ? getFoundation(fields.foundationId) : null;
+      if (!type) throw new Invalid('Unknown quote type');
+      const foundation = fields.foundationId && type.usesFoundation !== 'none' ? getFoundation(fields.foundationId) : null;
       if (type.usesFoundation === 'required' && !foundation) throw new Invalid(`${type.name} needs a foundation`);
       const q = newQuote(lib, foundation, { ...fields, type: type.id, number: nextNumber() });
       if (fields.createdBy) { q.createdBy = fields.createdBy; q.history[0].by = fields.createdBy; }

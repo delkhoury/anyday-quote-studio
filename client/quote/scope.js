@@ -2,7 +2,8 @@ import { useState, useMemo } from 'preact/hooks';
 import { html, Badge, Seg, NumInput, TextInput, Field, toast } from '../ui.js';
 import { describePricing, effectivePricing, priceForQuantity, incrementalPrice, blockTreatmentCounts, quantityFor, lineFor } from '../../shared/pricing.js';
 import { fmtMoney, fmtInt, toCents, centsToInput, plural } from '../../shared/format.js';
-import { blockLabel } from '../../shared/quote.js';
+import { blockLabel, isScratch } from '../../shared/quote.js';
+import { requirementCoverage, COVERAGE_LABEL, REQ_STATUSES, newReqId } from '../../shared/requirements.js';
 
 const STATE_OPTS = [{ value: 'included', label: 'Included', title: 'Counts toward the investment' }, { value: 'optional', label: 'Optional', title: 'Listed as an optional addition, never in the total' }, { value: 'hidden', label: 'Hidden', title: 'Not shown to the client' }];
 const TREATMENTS = [
@@ -30,6 +31,7 @@ export function ScopeStep({ quote, update, calc }) {
   const hideAll = list => update(qq => { const L = { ...qq.lines }; for (const l of list) if (l.state === 'optional') L[l.id] = { ...(L[l.id] || {}), state: 'hidden' }; return { ...qq, lines: L }; });
 
   return html`<div class="stack">
+    <${RequirementsCard} quote=${quote} update=${update} calc=${calc} />
     <div class="row wrap" role="tablist">${sections.map(s => { const c = calc.sections.find(x => x.id === s.id); return html`<button role="tab" aria-selected=${sec === s.id} class=${'btn' + (sec === s.id ? ' dark' : '')} onClick=${() => setSec(s.id)}>${s.order}. ${s.name} <span class="small" style="opacity:.8">${c.empty ? '' : fmtMoney(c.subtotal) + (c.pending ? '+' : '')}</span></button>`; })}</div>
     <div class="card" style="padding:12px 14px"><div class="row wrap">
       ${['included', 'optional', 'hidden', 'all'].map(k => html`<button class=${'chip' + (filter === k ? ' on' : '')} onClick=${() => setFilter(k)}>${k === 'all' ? 'All' : k[0].toUpperCase() + k.slice(1)} ${k !== 'all' ? html`<b>${counts[k]}</b>` : ''}</button>`)}
@@ -39,7 +41,7 @@ export function ScopeStep({ quote, update, calc }) {
     </div><p class="tiny muted" style="margin:6px 0 0">${secCalc.intro} Unselected items default to optional additions. Hide anything irrelevant or incompatible so it stays out of the proposal.</p></div>
 
     ${sec === 'base' && quote.foundation ? html`<${FoundationPanel} quote=${quote} update=${update} />` : null}
-    ${sec === 'base' && !quote.foundation && quote.type === 'new_platform' ? html`<div class="banner info small">A new platform built from scratch. Component design counts every reusable component included below, so set the component quantities first.</div>` : null}
+    ${sec === 'base' && !quote.foundation && isScratch(quote) ? html`<div class="banner info small">${quote.type === 'new_site' ? 'A website built from scratch.' : 'A new platform built from scratch.'} Component design counts every reusable component included below, so set the component quantities first.</div>` : null}
 
     ${impl.length ? html`<div class="card flush"><div class="cat-head"><span>${sec === 'base' ? 'Implementation' : secCalc.name}</span><span>${fmtMoney(secCalc.implementationSubtotal)}</span></div>
       ${groupBy(impl, l => l.item.subcategory).map(([sub, ls]) => html`<div class="subcat-head">${sub}</div>${ls.map(l => html`<${ItemRow} key=${l.id} l=${l} quote=${quote} setLine=${setLine} byId=${byId} />`)}`)}</div>` : null}
@@ -51,13 +53,42 @@ export function ScopeStep({ quote, update, calc }) {
   </div>`;
 }
 
+// Requirements from the brief, each traced to the deliverables that answer it.
+const COV_KIND = { covered: 'ok', optional: 'warn', uncovered: 'danger', excluded: '', discovery: 'accent' };
+function RequirementsCard({ quote, update, calc }) {
+  const [open, setOpen] = useState(null);
+  const [draft, setDraft] = useState('');
+  const reqs = requirementCoverage(quote, calc);
+  const gaps = reqs.filter(r => r.coverage === 'uncovered');
+  const items = quote.pricingSnapshot.items;
+  const setReqs = fn => update(q => ({ ...q, requirements: fn(q.requirements || []) }));
+  const [shown, setShown] = useState(() => gaps.length > 0);
+  const patch = (id, p) => setReqs(list => list.map(r => r.id === id ? { ...r, ...p } : r));
+  function add() { const t = draft.trim(); if (!t) return; const id = newReqId(); setReqs(list => [...list, { id, text: t, lines: [], status: 'auto', note: '', source: 'manual' }]); setDraft(''); setOpen(id); }
+  return html`<details class="card more req-card" open=${shown} onToggle=${e => setShown(e.currentTarget.open)}>
+    <summary><span class="caps">Requirements from the brief</span> <b>${reqs.length}</b>
+      ${gaps.length ? html` <${Badge} kind="danger">${gaps.length} not covered<//>` : reqs.length ? html` <${Badge} kind="ok">All covered<//>` : html` <span class="tiny muted">None yet. The Quote assistant lists them from the brief, or add them here.</span>`}</summary>
+    <p class="tiny muted" style="margin:6px 0 10px">Each requirement links to the lines that answer it. A requirement is covered when a linked line is included. The proposal lists them in the client's words, with where each is priced. Requirements not covered stay out of the proposal.</p>
+    ${reqs.length ? html`<table class="t"><thead><tr><th>Requirement</th><th>Answered by</th><th>Status</th><th></th></tr></thead><tbody>${reqs.map(r => html`<tr key=${r.id}>
+      <td style="min-width:240px"><${TextInput} value=${r.text} ariaLabel="Requirement" onChange=${v => patch(r.id, { text: v })} />${r.note ? html`<div class="tiny muted" style="margin-top:3px">${r.note}</div>` : null}</td>
+      <td class="small">${[...r.included, ...r.optional.map(x => x + ' (optional)')].join(' · ') || html`<span class="muted">Nothing linked is included</span>`}
+        <div><button class="btn small ghost" onClick=${() => setOpen(open === r.id ? null : r.id)}>${open === r.id ? 'Done' : 'Link lines'}</button></div>
+        ${open === r.id ? html`<div class="req-links">${items.map(i => html`<label class="tiny"><input type="checkbox" checked=${r.lines.includes(i.id)} onChange=${e => patch(r.id, { lines: e.target.checked ? [...r.lines, i.id] : r.lines.filter(x => x !== i.id) })} /> ${i.name}</label>`)}</div>
+          <${TextInput} value=${r.note} ariaLabel="Note" placeholder="Note shown with the requirement (optional)" onChange=${v => patch(r.id, { note: v })} />` : null}</td>
+      <td><${Badge} kind=${COV_KIND[r.coverage]}>${COVERAGE_LABEL[r.coverage]}<//>
+        <select class="input" style="width:auto;margin-top:4px" aria-label="Decision" value=${r.status} onChange=${e => patch(r.id, { status: e.target.value })}>${REQ_STATUSES.map(st => html`<option value=${st.id}>${st.label}</option>`)}</select></td>
+      <td><button class="icon-btn" aria-label="Remove requirement" onClick=${() => setReqs(list => list.filter(x => x.id !== r.id))}>×</button></td></tr>`)}</tbody></table>` : null}
+    <div class="row" style="margin-top:8px"><input class="input" placeholder="Add a requirement, i.e. Online booking for every clinic" value=${draft} onInput=${e => setDraft(e.target.value)} onKeyDown=${e => { if (e.key === 'Enter') add(); }} aria-label="New requirement" /><button class="btn" disabled=${!draft.trim()} onClick=${add}>Add</button></div>
+  </details>`;
+}
+
 function groupBy(arr, fn) { const m = new Map(); for (const a of arr) { const k = fn(a) || 'Other'; if (!m.has(k)) m.set(k, []); m.get(k).push(a); } return [...m.entries()]; }
 
 function ItemRow({ l, quote, setLine, byId }) {
   const [open, setOpen] = useState(false);
   const p = l.pricing; const item = l.item; const line = l.line;
   const linked = item.quantitySource === 'component_design_count' || item.quantitySource === 'aaif_redesign_count';
-  const linkedHelp = quote.type === 'new_platform'
+  const linkedHelp = isScratch(quote)
     ? `Counts the reusable components included in Implementation${quote.foundation ? `, plus ${quote.foundation.name} components marked Redesign` : ''}.`
     : `Counts each unique ${quote.foundation?.name || 'foundation'} component marked Redesign once, however often it appears. Choose components in the panel above.`;
   const amountCell = () => {
@@ -99,6 +130,8 @@ function ItemRow({ l, quote, setLine, byId }) {
         ${linked ? html`<dt>Quantity</dt><dd class="small">${linkedHelp}</dd>` : null}
       </dl>
       <div class="stack" style="gap:10px">
+        ${l.state !== 'hidden' ? html`<${Field} label="Wording for this client (proposal)" hint="One sentence tying this deliverable to the brief. Shown under the line in the proposal. Leave empty to show only the standard description.">
+          <${TextInput} multiline rows=${2} value=${line.clientNote || ''} ariaLabel="Wording for this client" placeholder="i.e. Connects the new site to your booking system so patients can book online." onChange=${v => setLine(l.id, { clientNote: v.trim() || undefined })} /><//>` : null}
         ${p.status === 'starting_at' || item.pricing.status === 'starting_at' ? html`<${Field} label="Confirmed price (this quote)" hint="Replaces the starting price for this quote only."><div class="row"><span>$</span><${NumInput} cls="input money" value=${line.confirmedPrice != null ? line.confirmedPrice / 100 : null} onChange=${v => setLine(l.id, { confirmedPrice: v === null ? undefined : toCents(v) })} /><span class="tiny muted">per ${p.qtyUnit}</span></div><//>` : null}
         <${OverrideEditor} l=${l} setLine=${setLine} />
         ${l.isDesign && l.state === 'included' ? html`<${Field} label="Design amount is">
@@ -150,7 +183,7 @@ function FoundationPanel({ quote, update }) {
   const caps = f.providedCapabilities || [];
   const baseItems = quote.pricingSnapshot.items.filter(i => i.section === 'base' && !i.isDesign);
   const redesigned = f.components.filter(b => b.treatment === 'redesign');
-  const newPlatform = quote.type === 'new_platform';
+  const newPlatform = isScratch(quote);
   function addComponents() {
     const ids = paste.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
     setF(x => { const have = new Set(x.components.map(b => b.id)); const add = ids.filter(id => !have.has(id)).map(id => ({ id, name: blockLabel(id), treatment: 'new', note: '', addedInQuote: true })); return { ...x, components: [...x.components, ...add] }; });

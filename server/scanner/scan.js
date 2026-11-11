@@ -5,6 +5,7 @@ import { safeFetch, validateUrl, ScanError, USER_AGENT } from './net.js';
 import { parseRobots, makeRobotsChecker } from './robots.js';
 import { collectSitemaps, COMMON_SITEMAP_PATHS } from './sitemap.js';
 import { extractPage } from './extract.js';
+import { probeWordPress, buildInsights } from './insights.js';
 import { groupUrls, urlPattern, sitemapHint, classifyInspected, classifyUninspected, suggestBlocks, summarizeMedia, isArchiveUrl } from './classify.js';
 
 export const DEFAULT_LIMITS = {
@@ -193,8 +194,21 @@ export async function runScan({ rootUrl, includeHosts = [], crawlIfNoSitemap = f
     .map(t => ({ id: t.id, pages: t.pages.length, sample: t.pages[0], category: t.category, blockTypes: t.blockTypes.slice(0, 10) }));
   const groupList = groups.filter(g => g.size >= 5).sort((a, b) => b.size - a.size).slice(0, 50).map(g => ({ pattern: g.pattern, size: g.size, category: groupResults.get(g.pattern)?.category || null, contentType: groupResults.get(g.pattern)?.contentType || null }));
 
-  const partial = !!(sm.limited || budgetHit || failures.some(f => f.stage !== 'robots') || (crawlInfo && crawlInfo.limited));
-  return finish({ status: 'complete', entries, templates: templateList, groups: groupList, media, partial });
+  // site insights, plus exact content counts from the CMS when it publishes them
+  const pagesOk = [...inspectedData.values()].filter(f => !f.error);
+  let insights = buildInsights(pagesOk, { templates: templateList });
+  const wpLikely = insights.cms?.id === 'wordpress' || urls.some(u => /wp-sitemap|\/wp-content\//.test(u.sitemap || ''));
+  if (wpLikely && timeLeft() > 20000 && !signal?.aborted) {
+    progress('cms', 'Reading content counts from the WordPress REST API');
+    try {
+      const counts = await probeWordPress(origin, { allowed: u => checker.allowed(u), timeoutMs: limits.requestTimeoutMs, signal });
+      insights = buildInsights(pagesOk, { templates: templateList, cmsCounts: counts });
+      if (!insights.cms) insights.cms = { id: 'wordpress', name: 'WordPress', confidence: counts.available ? 'high' : 'medium', evidence: counts.available ? 'public WordPress REST API' : 'WordPress sitemap' };
+    } catch (e) { if (e.code === 'cancelled') throw e; failures.push({ url: origin + '/wp-json/wp/v2/types', stage: 'cms', error: e.message }); }
+  }
+
+  const partial = !!(sm.limited || budgetHit || failures.some(f => !['robots', 'cms'].includes(f.stage)) || (crawlInfo && crawlInfo.limited));
+  return finish({ status: 'complete', entries, templates: templateList, groups: groupList, media, partial, insights });
 
   // ---------------------------------------------------------------------
   function finish(extra) {
@@ -210,7 +224,7 @@ export async function runScan({ rootUrl, includeHosts = [], crawlIfNoSitemap = f
     return {
       id, rootUrl: root.toString(), startedAt: new Date(started).toISOString(), finishedAt: new Date().toISOString(),
       limits, log, failures: failures.slice(0, 500), failureCount: failures.length, sitemaps: sitemapFiles.map(f => ({ url: f.url, type: f.type, count: f.count, depth: f.depth, error: f.error, status: f.status })),
-      coverage, entries: [], templates: [], groups: [], media: null, partial: false, ...extra,
+      coverage, entries: [], templates: [], groups: [], media: null, partial: false, insights: null, ...extra,
     };
   }
 

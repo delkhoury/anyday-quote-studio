@@ -186,10 +186,10 @@ function foundationProvides(quote, id) {
 }
 
 // Components needing design: redesigned foundation components, plus (on a new
-// platform) every reusable component being built.
+// platform or a site built from scratch) every reusable component being built.
 export function componentDesignCount(quote) {
   const redesign = redesignCount(quote);
-  if ((quote.type || 'foundation_site') !== 'new_platform') return redesign;
+  if (!['new_platform', 'new_site'].includes(quote.type || 'foundation_site')) return redesign;
   const qtyOf = id => { const l = quote.lines?.[id]; return l?.state === 'included' ? (Number(l.qty) || 0) : 0; };
   return redesign + qtyOf('BASE_STD_COMPONENT') + qtyOf('BASE_ADV_COMPONENT');
 }

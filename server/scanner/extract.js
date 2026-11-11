@@ -2,6 +2,7 @@
 // no AI involved.
 import * as cheerio from 'cheerio';
 import crypto from 'node:crypto';
+import { detectTech, detectLanguages, sectionSignature } from './tech.js';
 
 const BLOCK_SELECTORS = [
   '.vc_row', '.wpb_row', '.elementor-section', '.elementor-top-section', '[class*="wp-block-"]', 'section', '[class*="block"]', '[class*="section"]', '[data-block]', '[data-component]',
@@ -74,6 +75,10 @@ export function extractPage(html, pageUrl) {
   const blocks = topLevelBlocks($, main);
   const types = blocks.map(el => blockType($, el));
   const distinctTypes = new Set(types);
+  const sectionMap = new Map();
+  blocks.forEach((el, i) => { const sg = sectionSignature($, el, types[i]); if (!sectionMap.has(sg.sig)) sectionMap.set(sg.sig, sg); });
+  const tech = detectTech($, html, generator);
+  const languages = detectLanguages($, pageUrl);
 
   const forms = main.find('form').toArray();
   const formKinds = forms.map(f => {
@@ -136,5 +141,6 @@ export function extractPage(html, pageUrl) {
     blocks: blocks.length, blockTypes: [...distinctTypes].slice(0, 30), distinctBlockTypes: distinctTypes.size,
     forms: formKinds, iframes: iframes.length, videoEmbeds: videoEmbeds.length, mapEmbeds: mapEmbeds.length, otherEmbeds: otherEmbeds.length,
     signals, cardGrids: grid.grids, article, hasTime, hasByline, words, fingerprint, media, links,
+    tech, languages, sections: [...sectionMap.values()].slice(0, 40),
   };
 }

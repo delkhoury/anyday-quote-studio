@@ -117,7 +117,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   app.get('/api/quotes', h((req, res) => res.json(store.listQuotes().map(quoteSummary).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '')))));
   app.post('/api/quotes', h((req, res) => {
     const b = req.body || {};
-    res.json(store.createQuote({ client: b.client || '', project: b.project || '', url: b.url || '', type: b.type || (b.foundationId ? 'foundation_site' : 'new_platform'), foundationId: b.foundationId || null, parentOrg: b.parentOrg || '', existingLiveSites: Math.max(0, Math.floor(Number(b.existingLiveSites) || 0)), preparedBy: req.user?.name || 'Anyday', createdBy: req.user?.email || null }));
+    res.json(store.createQuote({ client: b.client || '', project: b.project || '', url: b.url || '', type: b.type || (b.foundationId ? 'foundation_site' : (Number(b.sites) > 1 ? 'new_platform' : 'new_site')), foundationId: b.foundationId || null, parentOrg: b.parentOrg || '', existingLiveSites: Math.max(0, Math.floor(Number(b.existingLiveSites) || 0)), sites: Math.min(5000, Math.max(1, Math.floor(Number(b.sites) || 1))), preparedBy: req.user?.name || 'Anyday', createdBy: req.user?.email || null }));
   }));
   app.post('/api/quotes/import', h((req, res) => res.json(store.importQuote(req.body.quote))));
   app.get('/api/quotes/:id', h((req, res) => res.json(store.getQuote(req.params.id))));

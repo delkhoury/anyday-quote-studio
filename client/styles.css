@@ -302,3 +302,11 @@ table.plan-t tr.ph td { font-size: 10.5px; font-weight: 800; letter-spacing: .12
 .ai-reason b { color: var(--accent); font-weight: 700; }
 label.btn.disabled { opacity: .5; pointer-events: none; }
 @media (min-width: 1200px) { body:has(.ai-panel) .layout-rail { display: block; } body:has(.ai-panel) .layout-rail > .rail { position: static; margin-top: 16px; max-width: none; } }
+
+/* requirements and site insights */
+.req-card summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.req-links { max-height: 220px; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 10px; padding: 8px; margin: 6px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.req-links label { display: flex; gap: 6px; align-items: flex-start; }
+.insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.insight-grid .tile .d { white-space: normal; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }

@@ -273,6 +273,9 @@ for id_, name, what, rec, s_, p_ in DESIGN:
 
 # ---- quote types and their presets (editable in the Pricing Library) --------
 QUOTE_TYPES = [
+ dict(id="new_site", name="New website from scratch",
+      description="Design and build one website from scratch, with nothing reused from an existing platform.",
+      usesFoundation="none", sitesStep=False),
  dict(id="new_platform", name="New platform and rollout",
       description="Build a new multisite platform from scratch, then roll out the portfolio of sites onto it.",
       usesFoundation="optional", sitesStep=True),
@@ -290,6 +293,12 @@ PRESETS = {
    **{k: dict(state="included", qty=1) for k in ["BASE_CORE_PLATFORM", "BASE_STD_BRAND_CONTROLS", "DESIGN_DIRECTION", "MIG_BASIC_CLEANUP"]},
    **{k: dict(state="included") for k in ["BASE_STD_PAGE_TEMPLATE", "BASE_STD_COMPONENT", "BASE_STRUCT_CONTENT_MODEL",
                                           "DESIGN_COMPONENTS", "DESIGN_PAGE_LAYOUTS", "DESIGN_REVIEWS", "MIG_BRAND_CONFIG"] + MIGRATION_CORE},
+ },
+ "new_site": {
+   **{k: dict(state="included", qty=1) for k in ["BASE_CORE_PLATFORM", "BASE_STD_BRAND_CONTROLS", "DESIGN_DIRECTION", "MIG_BASIC_CLEANUP", "MIG_SITE_ACTIVATION"]},
+   **{k: dict(state="included") for k in ["BASE_STD_PAGE_TEMPLATE", "BASE_STD_COMPONENT", "BASE_STRUCT_CONTENT_MODEL",
+                                          "DESIGN_COMPONENTS", "DESIGN_PAGE_LAYOUTS", "DESIGN_REVIEWS"] + MIGRATION_CORE[1:]},
+   **{k: dict(state="hidden") for k in ["MIG_BRAND_CONFIG"]},
  },
  "foundation_site": {
    **{k: dict(state="hidden") for k in ["BASE_CORE_PLATFORM", "BASE_STD_BRAND_CONTROLS", "BASE_ADV_BRAND_CONTROLS"]},

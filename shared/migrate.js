@@ -46,6 +46,24 @@ export function migrateLibrary(lib, defaults = null) {
   return { ...lib, schemaVersion: 2, quoteTypes: clone(defaults?.quoteTypes || QUOTE_TYPES_FALLBACK), items };
 }
 
+// Additive upgrade for a version 2 library: quote types added since it was saved, and the
+// default presets for those types. Prices, names and existing presets are never touched.
+export function upgradeLibrary(lib, defaults) {
+  if (!defaults?.quoteTypes || (lib.schemaVersion || 1) < 2) return { lib, changed: false };
+  const have = new Set((lib.quoteTypes || []).map(t => t.id));
+  const added = defaults.quoteTypes.filter(t => !have.has(t.id));
+  if (!added.length) return { lib, changed: false };
+  const d = Object.fromEntries(defaults.items.map(i => [i.id, i]));
+  const order = defaults.quoteTypes.map(t => t.id);
+  const quoteTypes = [...(lib.quoteTypes || []), ...clone(added)].sort((a, b) => (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99));
+  const items = lib.items.map(it => {
+    const p = { ...(it.presets || {}) };
+    for (const t of added) if (d[it.id]?.presets?.[t.id] && !p[t.id]) p[t.id] = clone(d[it.id].presets[t.id]);
+    return { ...it, presets: p };
+  });
+  return { lib: { ...lib, quoteTypes, items }, changed: true, added: added.map(t => t.id) };
+}
+
 export function migrateQuote(q, defaults = null) {
   if ((q.schemaVersion || 1) >= 2) return q;
   const c = clone(q);

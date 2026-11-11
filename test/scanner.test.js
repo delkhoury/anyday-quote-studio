@@ -98,6 +98,33 @@ test('full scan: nested and gzipped sitemaps, partial failures, scope, robots, c
     assert.equal(d.videos.externalReferences, 1);
     assert.match(d.label, /not a complete media library count/);
     assert.ok(r.media.imageSitemap.entries >= 1);
+    // insights: CMS with exact counts from its REST API, integrations, languages, components
+    const ins = r.insights;
+    assert.equal(ins.cms.id, 'wordpress');
+    assert.equal(ins.cmsCounts.available, true);
+    const t = Object.fromEntries(ins.cmsCounts.types.map(x => [x.slug, x.total]));
+    assert.deepEqual(t, { post: 40, page: 21, tribe_events: 3 }); // attachments and patterns skipped
+    assert.equal(ins.cmsCounts.media, 312);
+    assert.deepEqual(ins.cmsCounts.taxonomies.map(x => x.slug), ['category', 'post_tag']);
+    assert.ok(ins.integrations.some(i => i.id === 'ga4' && i.category === 'analytics'));
+    assert.ok(ins.integrations.some(i => i.id === 'hubspot_tracking' && i.category === 'crm'));
+    assert.ok(ins.integrations.some(i => i.id === 'youtube'));
+    assert.deepEqual(ins.languages.codes, ['en', 'fr']);
+    assert.equal(ins.languages.count, 2);
+    assert.ok(ins.components.count >= 5, `components ${ins.components.count}`);
+    assert.ok(ins.components.interactive >= 2);
+    assert.ok(ins.templates.count >= 1);
+  } finally { server.close(); }
+});
+
+test('insights without a public REST API fall back to page evidence', async () => {
+  const { server, base } = await startFixture({ noRest: true });
+  try {
+    const r = await runScan({ rootUrl: base, catalogueIds: ids, limits: fast });
+    assert.equal(r.insights.cms.id, 'wordpress');
+    assert.equal(r.insights.cmsCounts.available, false);
+    assert.match(r.insights.cmsCounts.reason, /401/);
+    assert.equal(r.partial, true); // from the broken sitemap, not the CMS probe
   } finally { server.close(); }
 });
 

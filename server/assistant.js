@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { calculateQuote } from '../shared/pricing.js';
 import { applyFoundation, quoteTypes, quoteTypeOf } from '../shared/quote.js';
-import { summarize, mergeScan, portfolioSummary, proposeQuantities, applyProposals } from '../shared/inventory.js';
+import { summarize, mergeScan, portfolioSummary, proposeQuantities, applyProposals, siteInsights } from '../shared/inventory.js';
+import { requirementCoverage, cleanRequirement } from '../shared/requirements.js';
 import { ROLE_IDS, PHASES, emptyPlan, planRows } from '../shared/plan.js';
 import { describePricing } from '../shared/pricing.js';
 
@@ -37,14 +38,20 @@ export function systemPrompt(quote, { foundations = [] } = {}) {
 
 Your job: from a project brief or a conversation, build the quote in the studio yourself, using the tools. Changes apply to the quote immediately; the user can undo a whole turn. Work through it end to end without asking permission for each step:
 1. Read the brief. Call get_quote_state first.
-2. Set up the project: client, parent organisation, project name, main URL, quote type, and a foundation when the work reuses one.
-3. For multi site work, set site types with counts and one or two sample URLs each; give typical per site figures for types you cannot scan.
-4. Analyse websites named in the brief with analyse_website (one call per site, main site first, at most 4 sites per turn), then apply_inventory_quantities so migration volumes come from real URLs.
-5. Choose every deliverable with set_lines: included lines with exact quantities, optional lines for credible upsells, hidden lines for anything irrelevant. Give a short concrete reason for every included line, citing the brief or the scan.
-6. On a foundation quote, set component treatments (brand, redesign, extend, new, not_used) from what the brief asks for.
-7. Write the proposal: a two paragraph introduction, assumptions for every guess you made, exclusions.
-8. Add first pass Plan hours for included lines that need hours (set_plan_hours), by role: design, dev, pm, lead.
-9. Call get_pricing_summary, then finish with a short summary: what you set, the total, and the open questions the brief did not answer.
+2. Set up the project: client, parent organisation, project name, main URL, and the quote type. Pick the type from two facts: where the build starts and how many sites.
+   - One website, nothing reused: new_site. Several websites on a new shared platform: new_platform.
+   - Reusing a platform Anyday built for someone else: foundation_site (one site or many) with foundationId.
+   - Adding sites to a live Anyday platform for this client: expansion, with existingLiveSites.
+3. List the brief's requirements with set_requirements: every concrete need, in the client's terms (i.e. "Book appointments online through Zenoti", "English and French"), each linked to the item ids that answer it. Do this early and update it as lines change, so nothing in the brief is left unpriced. A requirement you deliberately leave out gets status excluded and a note.
+4. For more than one site, set site types with counts and one or two sample URLs each; give typical per site figures for types you cannot scan. A 500 site portfolio is usually 2 to 6 site types, not 500 rows.
+5. Analyse websites named in the brief with analyse_website (one call per site, main site first, at most 4 sites per turn), then apply_inventory_quantities so volumes come from real URLs. The result includes insights: the CMS, exact content counts when the CMS publishes them, integrations found in page scripts, languages, page templates and distinct components. Use them: exact counts beat sitemap counts for media and content types; integrations and languages found on the site are requirements unless the brief retires them; on a scratch build, templates and components size the build.
+6. Choose every deliverable with set_lines: included lines with exact quantities, optional lines for credible upsells, hidden lines for anything irrelevant.
+   - reason: internal, short and concrete, citing the brief or the scan.
+   - clientText: for each included line that answers something specific in the brief, one client facing sentence in the brief's own terms (i.e. for a booking integration: "Connects the new site to your Zenoti booking so patients can book any of the 40 clinics online."). Never restate the generic library description; skip clientText when there is nothing specific to say.
+7. On a foundation quote, set component treatments (brand, redesign, extend, new, not_used) from what the brief asks for.
+8. Write the proposal: a two paragraph introduction specific to this client, assumptions for every guess you made, exclusions.
+9. Add first pass Plan hours for included lines that need hours (set_plan_hours), by role: design, dev, pm, lead.
+10. Call get_pricing_summary and get_quote_state, check every requirement is covered, then finish with a short summary: what you set, the total, uncovered requirements, and the open questions the brief did not answer.
 
 Rules:
 - Use only item ids from the catalogue below. Never set prices; prices come from the Pricing Library. Items marked "price needed" stay unpriced and you say so.
@@ -54,6 +61,8 @@ Rules:
 - Media: apply_inventory_quantities proposes an allowance estimated from the scan (media per inspected page × included URLs, or the image sitemap). It is an estimate until a CMS media export is imported; say so in an assumption.
 - Items whose quantity is computed automatically (i.e. Component design) only need to be included.
 - On a foundation quote, do not include the core platform or brand control build items; the foundation provides them.
+- On a scratch build (new_site, new_platform), size page templates, standard and advanced components and content models from the scan insights and the brief; say in the reason which one drove the number.
+- If a brief needs something no catalogue item covers, do not force a wrong item. Add it as a requirement with status discovery and a note, and list it in your summary as a library gap.
 - If the brief is too thin to quote, still build the best first draft, state the assumptions, and list the questions.
 - Writing style for anything client facing (introduction, assumptions, exclusions, reasons): plain, specific, Canadian English spelling, no em dashes, use "i.e." and never "e.g.".
 - Keep chat replies short. The quote itself is the deliverable.
@@ -74,14 +83,15 @@ export const TOOLS = [
   { name: 'get_quote_state', description: 'Current state of the quote: setup, foundation, site types, inventory, included lines, totals, open issues.', input_schema: { type: 'object', properties: {} } },
   { name: 'set_project_details', description: 'Set client and project details, the quote type and the foundation. Only the fields given change.', input_schema: { type: 'object', properties: {
     client: { type: 'string' }, parentOrg: { type: 'string' }, contact: { type: 'string' }, project: { type: 'string' }, url: { type: 'string' },
-    type: { type: 'string', enum: ['new_platform', 'foundation_site', 'expansion'] }, foundationId: { type: 'string', description: "A foundation id, or 'none' to remove the foundation" }, existingLiveSites: { type: 'integer', minimum: 0 } } } },
+    type: { type: 'string', enum: ['new_site', 'new_platform', 'foundation_site', 'expansion'] }, foundationId: { type: 'string', description: "A foundation id, or 'none' to remove the foundation" }, existingLiveSites: { type: 'integer', minimum: 0 } } } },
   { name: 'set_site_types', description: 'Replace the site types of a multi site quote. Each has a name, a count, sample URLs to analyse, and optional typical per site figures (L1, L2, L3, BULK_STATIC, RECORD, ARCHIVE) used when no sample is analysed.', input_schema: { type: 'object', required: ['siteTypes'], properties: { siteTypes: { type: 'array', items: { type: 'object', required: ['name', 'count'], properties: {
     name: { type: 'string' }, count: { type: 'integer', minimum: 0 }, samples: { type: 'array', items: { type: 'string' } },
     perSite: { type: 'object', properties: Object.fromEntries(CATEGORY_KEYS.map(k => [k, { type: 'number', minimum: 0 }])) }, notes: { type: 'string' } } } } } } },
   { name: 'analyse_website', description: 'Scan a website (sitemaps plus a bounded page inspection) and merge its URLs into the inventory under a site type. Takes one to three minutes. Returns page, record and media counts for that site.', input_schema: { type: 'object', required: ['url'], properties: { url: { type: 'string' }, siteType: { type: 'string', description: 'Site type name; defaults to the first' }, maxPages: { type: 'integer', minimum: 10, maximum: 200 } } } },
   { name: 'apply_inventory_quantities', description: 'Set migration quantities (site activation, page levels, records, content types, brand configuration) from the analysed inventory and site types. Returns what was applied.', input_schema: { type: 'object', properties: {} } },
   { name: 'set_lines', description: 'Include, offer as optional, or hide deliverables, with quantities and a reason. Lines not mentioned are unchanged.', input_schema: { type: 'object', required: ['lines'], properties: { lines: { type: 'array', items: { type: 'object', required: ['id', 'state'], properties: {
-    id: { type: 'string' }, state: { type: 'string', enum: ['included', 'optional', 'hidden'] }, qty: { type: 'number', minimum: 0 }, optionalQty: { type: 'number', minimum: 0 }, reason: { type: 'string' } } } } } } },
+    id: { type: 'string' }, state: { type: 'string', enum: ['included', 'optional', 'hidden'] }, qty: { type: 'number', minimum: 0 }, optionalQty: { type: 'number', minimum: 0 }, reason: { type: 'string', description: 'Internal: why this line and quantity (shown to Anyday only)' }, clientText: { type: 'string', description: 'Client facing: one sentence tying this deliverable to the brief in its own terms. Shown under the line in the proposal. Empty string removes it.' } } } } } } },
+  { name: 'set_requirements', description: 'Replace the list of requirements taken from the brief. Each is one concrete need in the client\'s terms, linked to the item ids that answer it. status: auto (covered when a linked line is included), excluded (deliberately out of scope, say why in note) or discovery (to confirm in discovery).', input_schema: { type: 'object', required: ['requirements'], properties: { requirements: { type: 'array', items: { type: 'object', required: ['text'], properties: { text: { type: 'string' }, lines: { type: 'array', items: { type: 'string' } }, status: { type: 'string', enum: ['auto', 'excluded', 'discovery'] }, note: { type: 'string' } } } } } } },
   { name: 'set_component_treatments', description: 'On a foundation quote, set what happens to each foundation component: brand (branding only), redesign (visual redesign, same schema), extend (needs new fields or functionality), new, not_used.', input_schema: { type: 'object', required: ['components'], properties: { components: { type: 'array', items: { type: 'object', required: ['id', 'treatment'], properties: { id: { type: 'string' }, treatment: { type: 'string', enum: ['brand', 'redesign', 'extend', 'new', 'not_used'] }, note: { type: 'string' } } } } } } },
   { name: 'write_proposal', description: 'Write proposal text. Only the fields given change. assumptions and exclusions replace the current lists.', input_schema: { type: 'object', properties: { intro: { type: 'string' }, assumptions: { type: 'array', items: { type: 'string' } }, exclusions: { type: 'array', items: { type: 'string' } }, timeline: { type: 'string' } } } },
   { name: 'set_plan_hours', description: 'First pass internal Plan hours for included deliverables, by role (design, dev, pm, lead): fixed hours and hours per unit. Stored on this quote only.', input_schema: { type: 'object', required: ['rows'], properties: { rows: { type: 'array', items: { type: 'object', required: ['id'], properties: { id: { type: 'string' }, setup: roleHours, perUnit: roleHours, phase: { type: 'string', enum: PHASES }, note: { type: 'string' } } } } } } },
@@ -103,6 +113,20 @@ function quoteState(q) {
     total: calc.total, totalStatus: calc.totalStatus, blockers: calc.blockers.map(b => b.message).slice(0, 20),
     proposal: { intro: trim(q.proposal?.intro, 400), assumptions: q.proposal?.assumptions || [], exclusions: q.proposal?.exclusions || [] },
     planHoursNeeded: planRows(q, { calc }).filter(r => r.hoursNeeded).map(r => r.id),
+    requirements: requirementCoverage(q, calc).map(r => ({ text: r.text, lines: r.lines, coverage: r.coverage })),
+    siteInsights: insightsBrief(siteInsights(q)),
+    clientWording: calc.lines.filter(l => l.state === 'included' && l.line.clientNote).map(l => l.id),
+  };
+}
+
+// A compact view of site insights for the model.
+function insightsBrief(si) {
+  if (!si) return null;
+  return {
+    cms: si.cms.map(c => `${c.name} (${c.confidence})`),
+    exactCounts: si.exact ? { source: si.exact.cms, records: si.exact.records.total, pages: si.exact.pages.total, media: si.exact.media.total, extrapolated: si.exact.records.extrapolated || si.exact.media.extrapolated, recordTypes: si.exact.recordTypes, types: si.exact.types?.map(t => `${t.name}: ${t.total}`), taxonomies: si.exact.taxonomies?.map(t => `${t.name}: ${t.total}`) } : null,
+    integrations: si.integrations.map(i => `${i.name} (${i.categoryName || i.category})`),
+    languages: si.languages, templates: { count: si.templates.count, advanced: si.templates.advanced }, components: { count: si.components.count, standard: si.components.standard, interactive: si.components.interactive, examples: (si.components.list || []).slice(0, 15).map(c => `${c.type}${c.flags.length ? ` [${c.flags.join(', ')}]` : ''} on ${c.pages} pages`) },
   };
 }
 
@@ -121,6 +145,7 @@ function makeTools({ store, scan, signal, onProgress }) {
         const t = quoteTypes(q.pricingSnapshot).find(y => y.id === x.type);
         if (!t) throw new Error(`Unknown quote type ${x.type}`);
         if (t.usesFoundation === 'required' && !q.foundation) throw new Error(`${t.name} needs a foundation. Set foundationId first.`);
+        if (t.usesFoundation === 'none' && q.foundation) throw new Error(`${t.name} reuses nothing. Remove the foundation (foundationId 'none') or use foundation_site.`);
         q = { ...q, type: x.type }; changed.push(t.name);
       }
       const client = { ...q.client }; const project = { ...q.project };
@@ -166,8 +191,8 @@ function makeTools({ store, scan, signal, onProgress }) {
       await ctx.save();
       const site = summarize({ entries: inventory.entries.filter(e => e.siteKey === inventory.scans.at(-1).site) });
       return {
-        result: { ok: true, urls: result.entries.length, partial: !!result.partial, limitedBy: result.coverage?.limitedBy || [], byCategory: site.byCategory, archives: site.byCategoryAll.ARCHIVE, recordTypes: Object.entries(site.recordsByType).sort((a, b) => b[1] - a[1]).slice(0, 12), needsReview: site.needsReview, media: result.media ? { images: result.media.images?.unique, documents: result.media.documents?.unique } : null, siteType: g?.name },
-        summary: `Analysed ${url.replace(/^https?:\/\//, '')}: ${result.entries.length.toLocaleString()} URLs${result.partial ? ' (partial)' : ''}`,
+        result: { ok: true, urls: result.entries.length, partial: !!result.partial, limitedBy: result.coverage?.limitedBy || [], byCategory: site.byCategory, archives: site.byCategoryAll.ARCHIVE, recordTypes: Object.entries(site.recordsByType).sort((a, b) => b[1] - a[1]).slice(0, 12), needsReview: site.needsReview, media: result.media?.discovered ? { images: result.media.discovered.images?.unique, documents: result.media.discovered.documents?.unique, imageSitemap: result.media.imageSitemap?.unique ?? null } : null, siteType: g?.name, insights: result.insights ? insightsBrief(siteInsights({ siteGroups: [{ id: g?.id || 'main', count: 1 }], inventory: { insights: { [inventory.scans.at(-1).site]: { ...result.insights, groupId: g?.id } } } })) : null },
+        summary: `Analysed ${url.replace(/^https?:\/\//, '')}: ${result.entries.length.toLocaleString()} URLs${result.partial ? ' (partial)' : ''}${result.insights?.cms ? `, ${result.insights.cms.name}${result.insights.cmsCounts?.available ? ' with exact counts' : ''}` : ''}`,
       };
     },
 
@@ -190,6 +215,7 @@ function makeTools({ store, scan, signal, onProgress }) {
         if (!it) { errors.push(`Unknown item ${l.id}`); continue; }
         const cur = lines[l.id] || {};
         const next = { ...cur, state: l.state, aiNote: l.reason || cur.aiNote };
+        if (l.clientText !== undefined) { if (String(l.clientText).trim()) next.clientNote = String(l.clientText).trim().slice(0, 300); else delete next.clientNote; }
         if (l.state === 'included' && !it.quantitySource && it.pricing.model !== 'included') {
           if (l.qty === undefined || l.qty === null) { if (cur.qty == null) errors.push(`${l.id}: included without a quantity`); }
           else { next.qty = Math.round(Number(l.qty) * 100) / 100; next.qtySource = 'assistant'; }
@@ -201,6 +227,20 @@ function makeTools({ store, scan, signal, onProgress }) {
       ctx.q = { ...ctx.q, lines }; await ctx.save();
       const calc = calculateQuote(ctx.q);
       return { result: { ok: !errors.length, errors, total: calc.total, totalStatus: calc.totalStatus, blockers: calc.blockers.length }, summary: `Set ${x.lines.length} deliverables (${inc} included, ${opt} optional, ${hid} hidden)` };
+    },
+
+    set_requirements: async (x, ctx) => {
+      const ids = new Set(ctx.q.pricingSnapshot.items.map(i => i.id));
+      const prev = new Map((ctx.q.requirements || []).map(r => [r.text.trim().toLowerCase(), r]));
+      const unknown = [];
+      const reqs = x.requirements.filter(r => String(r.text || '').trim()).slice(0, 60).map(r => {
+        for (const id of r.lines || []) if (!ids.has(id)) unknown.push(id);
+        return cleanRequirement({ ...r, id: prev.get(String(r.text).trim().toLowerCase())?.id, source: 'brief' }, ids);
+      });
+      ctx.q = { ...ctx.q, requirements: reqs }; await ctx.save();
+      const cov = requirementCoverage(ctx.q, calculateQuote(ctx.q));
+      const gaps = cov.filter(r => r.coverage === 'uncovered').map(r => r.text);
+      return { result: { ok: !unknown.length, unknownItems: [...new Set(unknown)], requirements: cov.length, uncovered: gaps }, summary: `Listed ${reqs.length} requirements from the brief${gaps.length ? `, ${gaps.length} not covered yet` : ''}` };
     },
 
     set_component_treatments: async (x, ctx) => {

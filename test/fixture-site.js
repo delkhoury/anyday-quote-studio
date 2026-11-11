@@ -35,17 +35,23 @@ export function startFixture(state = {}) {
       case '/wp-sitemap-posts-tribe_events-1.xml': return xml(urlset(['/events/e-1/', '/events/e-2/', '/events/e-3/']));
       case '/wp-sitemap-taxonomies-post_tag-1.xml': return xml(urlset(['/tag/news/', '/tag/security/']));
       case '/broken.xml': return send(500, 'oops', 'text/plain');
+      case '/wp-json/wp/v2/types': return s.noRest ? send(401, '{"code":"rest_forbidden"}', 'application/json') : send(200, JSON.stringify({ post: { name: 'Posts', rest_base: 'posts' }, page: { name: 'Pages', rest_base: 'pages', hierarchical: true }, tribe_events: { name: 'Events', rest_base: 'tribe_events' }, attachment: { name: 'Media', rest_base: 'media' }, wp_block: { name: 'Patterns', rest_base: 'blocks' } }), 'application/json');
+      case '/wp-json/wp/v2/taxonomies': return send(200, JSON.stringify({ category: { name: 'Categories', rest_base: 'categories', types: ['post'] }, post_tag: { name: 'Tags', rest_base: 'tags', types: ['post'] }, nav_menu: { name: 'Menus', rest_base: 'menus' } }), 'application/json');
+      case '/wp-json/wp/v2/posts': case '/wp-json/wp/v2/pages': case '/wp-json/wp/v2/tribe_events': case '/wp-json/wp/v2/media': case '/wp-json/wp/v2/categories': case '/wp-json/wp/v2/tags': {
+        const totals = { posts: 40, pages: 21, tribe_events: 3, media: 312, categories: 5, tags: 2 };
+        res.writeHead(200, { 'content-type': 'application/json', 'x-wp-total': String(totals[url.pathname.split('/').pop()]), 'x-wp-totalpages': '1' }); return res.end('[{"id":1}]');
+      }
       case '/go-internal': res.writeHead(302, { location: 'http://10.0.0.5/admin' }); return res.end();
     }
     const img = n => `<img src="/wp-content/uploads/pic-${n}-300x200.jpg" srcset="/wp-content/uploads/pic-${n}-300x200.jpg 300w, /wp-content/uploads/pic-${n}-1024x683.jpg 1024w, /wp-content/uploads/pic-${n}.jpg 2000w">`;
-    const page = (title, main, extra = '') => send(200, `<!doctype html><html><head><title>${title}</title>${extra}</head><body class="page"><header><nav><a href="/">Home</a></nav></header><main>${main}</main><footer>© fixture</footer></body></html>`);
+    const page = (title, main, extra = '') => send(200, `<!doctype html><html lang="en-CA"><head><title>${title}</title><link rel="alternate" hreflang="en" href="${base}${url.pathname}"><link rel="alternate" hreflang="fr-ca" href="${base}/fr${url.pathname}"><script async src="https://www.googletagmanager.com/gtag/js?id=G-TEST123"></script><script src="/wp-includes/js/jquery.js"></script>${extra}</head><body class="page"><header><nav><a href="/">Home</a></nav></header><main>${main}</main><footer>© fixture</footer></body></html>`);
     if (url.pathname === '/') return page('Fixture Home', `
       <section class="hero"><h1>Welcome</h1>${img(1)}</section>
       <section class="features-grid"><h2>Features</h2><div class="cards">${Array.from({ length: 8 }, (_, i) => `<div class="card"><a href="/f${i}">F${i}</a></div>`).join('')}</div></section>
       <section class="tabs"><div role="tablist"><button>One</button><button>Two</button></div></section>
       <section class="accordion"><details><summary>Q</summary>A</details></section>
       <section class="video"><iframe src="https://www.youtube.com/embed/abc"></iframe></section>
-      <section class="cta"><form><input name="name"><input type="email" name="email"><textarea name="msg"></textarea></form></section>
+      <section class="cta"><form><input name="name"><input type="email" name="email"><textarea name="msg"></textarea></form><script src="https://js.hsforms.net/forms/v2.js"></script></section>
       <section class="logos">${Array.from({ length: 9 }, (_, i) => `<img alt="member logo ${i}" src="/wp-content/uploads/logo-${i}.png">`).join('')}</section>
       <a href="/files/annual-report.pdf">Report</a>`);
     if (url.pathname === '/about/') return page('About', `<section class="intro"><h1>About</h1><p>Text</p>${img(2)}</section><section class="team"><h2>Team</h2></section><section class="cta"><a href="/contact/">Contact</a></section><section class="stats"><p>1</p></section>`);

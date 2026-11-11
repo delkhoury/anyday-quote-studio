@@ -6,7 +6,7 @@ import { QuoteEditor } from './quote/editor.js';
 import { LibraryScreen } from './library.js';
 import { FoundationsScreen, FoundationEditor } from './foundations.js';
 import { TeamScreen } from './team.js';
-import { quoteTypes } from '../shared/quote.js';
+import { quoteTypes, typeFor, STARTING_POINTS } from '../shared/quote.js';
 import { fmtMoney, fmtDate } from '../shared/format.js';
 import './styles.css';
 
@@ -82,41 +82,53 @@ function QuotesScreen({ api, library }) {
 
 function NewQuote({ api, library, onClose }) {
   const types = quoteTypes(library);
-  const [f, setF] = useState({ type: 'new_platform', client: '', project: '', url: '', foundationId: '', parentOrg: '', existingLiveSites: '' });
+  const [f, setF] = useState({ start: 'scratch', multi: false, sites: '', client: '', project: '', url: '', foundationId: '', parentOrg: '', existingLiveSites: '' });
   const [foundations, setFoundations] = useState(null);
   const [err, setErr] = useState(null);
   useEffect(() => { api.foundations().then(l => setFoundations(l.filter(x => !x.archived))); }, []);
-  const type = types.find(t => t.id === f.type) || types[0];
+  const typeId = typeFor(f.start, f.multi);
+  const type = types.find(t => t.id === typeId) || types.find(t => t.id === 'new_platform') || types[0];
   const needsF = type.usesFoundation === 'required';
+  const canF = type.usesFoundation !== 'none';
+  const sites = f.multi ? Math.max(2, Number(f.sites) || 0) : 1;
+  const multiStep = !!type.sitesStep || sites > 1;
   const urlOk = !f.url || /^https?:\/\/[^\s/]+\.[^\s]+/.test(f.url.trim());
-  const valid = f.client.trim() && urlOk && (!needsF || f.foundationId) && (f.type !== 'expansion' || f.existingLiveSites !== '');
+  const valid = f.client.trim() && urlOk && (!needsF || f.foundationId) && (type.id !== 'expansion' || f.existingLiveSites !== '') && (!f.multi || Number(f.sites) >= 2);
   const pickF = id => { const fd = (foundations || []).find(x => x.id === id); setF({ ...f, foundationId: id, parentOrg: f.parentOrg || fd?.owner || '' }); };
   async function create() {
     try {
-      const q = await api.createQuote({ type: f.type, client: f.client.trim(), project: f.project.trim(), url: f.url.trim(), foundationId: f.foundationId || null, parentOrg: f.parentOrg.trim(), existingLiveSites: Number(f.existingLiveSites) || 0 });
-      onClose(); go(`#/quote/${q.id}/${type.sitesStep ? 'sites' : (f.url ? 'analyse' : 'setup')}`);
+      const q = await api.createQuote({ type: type.id, sites, client: f.client.trim(), project: f.project.trim(), url: f.url.trim(), foundationId: canF ? (f.foundationId || null) : null, parentOrg: f.parentOrg.trim(), existingLiveSites: Number(f.existingLiveSites) || 0 });
+      onClose(); go(`#/quote/${q.id}/${multiStep ? 'sites' : (f.url ? 'analyse' : 'setup')}`);
     } catch (e) { setErr(e.message); }
   }
+  const radio = (label, items, value, onPick) => html`<div class="type-cards" role="radiogroup" aria-label=${label}>${items.map(t => html`<button type="button" role="radio" aria-checked=${value === t.id} class=${'type-card' + (value === t.id ? ' on' : '')} onClick=${() => onPick(t.id)}>
+    <b>${t.name}</b><span class="small muted">${t.description}</span></button>`)}</div>`;
   return html`<${Modal} title="New quote" onClose=${onClose} footer=${html`<button class="btn" onClick=${onClose}>Cancel</button><button class="btn primary" disabled=${!valid} onClick=${create}>Create quote</button>`}>
     <div class="stack">
-      <div><div class="caps" style="margin-bottom:8px">What are we pricing?</div>
-        <div class="type-cards" role="radiogroup" aria-label="Quote type">${types.map(t => html`<button type="button" role="radio" aria-checked=${f.type === t.id} class=${'type-card' + (f.type === t.id ? ' on' : '')} onClick=${() => setF({ ...f, type: t.id })}>
-          <b>${t.name}</b><span class="small muted">${t.description}</span></button>`)}</div></div>
+      <div><div class="caps" style="margin-bottom:8px">1. Where does the build start?</div>
+        ${radio('Starting point', STARTING_POINTS, f.start, id => setF({ ...f, start: id, multi: id === 'live' ? true : f.multi }))}</div>
+      <div><div class="caps" style="margin-bottom:8px">2. How many websites?</div>
+        <div class="row wrap" style="gap:8px">
+          ${f.start !== 'live' ? html`<button type="button" class=${'chip' + (!f.multi ? ' on' : '')} aria-pressed=${!f.multi} onClick=${() => setF({ ...f, multi: false })}>One website</button>` : null}
+          <button type="button" class=${'chip' + (f.multi ? ' on' : '')} aria-pressed=${f.multi} onClick=${() => setF({ ...f, multi: true })}>${f.start === 'live' ? 'New sites to add' : 'Several websites'}</button>
+          ${f.multi ? html`<input class="input" style="width:120px" inputmode="numeric" aria-label="Number of websites" placeholder="How many?" value=${f.sites} onInput=${e => setF({ ...f, sites: e.target.value.replace(/[^0-9]/g, '') })} />
+            <span class="tiny muted">An estimate is fine. You group them into site types in the Sites step, from 2 to 500 or more.</span>` : null}</div></div>
+      <div class="banner info small"><b>${type.name}.</b> ${type.description}${f.start === 'foundation' && sites > 1 ? ` Priced for ${sites} sites on the reused foundation.` : ''}</div>
       <div class="grid2">
         <${Field} label="Client"><input class="input" value=${f.client} onInput=${e => setF({ ...f, client: e.target.value })} placeholder="Organisation name" /><//>
-        <${Field} label=${f.type === 'foundation_site' ? 'Parent organisation' : 'Parent organisation (optional)'} hint="The organisation the client belongs to, if any."><input class="input" value=${f.parentOrg} onInput=${e => setF({ ...f, parentOrg: e.target.value })} /><//>
+        <${Field} label=${f.start === 'foundation' ? 'Parent organisation' : 'Parent organisation (optional)'} hint="The organisation the client belongs to, if any."><input class="input" value=${f.parentOrg} onInput=${e => setF({ ...f, parentOrg: e.target.value })} /><//>
       </div>
-      <${Field} label="Project"><input class="input" value=${f.project} onInput=${e => setF({ ...f, project: e.target.value })} placeholder=${f.type === 'new_platform' ? 'i.e. Clinic network platform and rollout' : f.type === 'expansion' ? 'i.e. Phase 2 rollout' : 'i.e. Website on the shared platform'} /><//>
+      <${Field} label="Project"><input class="input" value=${f.project} onInput=${e => setF({ ...f, project: e.target.value })} placeholder=${type.id === 'new_platform' ? 'i.e. Clinic network platform and rollout' : type.id === 'expansion' ? 'i.e. Phase 2 rollout' : type.id === 'new_site' ? 'i.e. New corporate website' : 'i.e. Website on the shared platform'} /><//>
       <div class="grid2">
-        <${Field} label=${needsF ? 'Foundation' : 'Start from a foundation (optional)'} hint=${needsF ? 'The platform this work builds on. Manage these under Foundations.' : 'Leave empty to price a platform built from scratch.'}>
+        ${canF ? html`<${Field} label=${needsF ? 'Foundation' : 'Start from a foundation (optional)'} hint=${needsF ? 'The platform this work builds on. Manage these under Foundations.' : 'Leave empty to price a platform built from scratch.'}>
           <select class="input" value=${f.foundationId} onChange=${e => pickF(e.target.value)}>
             <option value="">${needsF ? 'Choose a foundation' : 'None, build from scratch'}</option>
             ${(foundations || []).map(x => html`<option value=${x.id}>${x.name}${x.owner ? ` (${x.owner})` : ''}</option>`)}</select>
-          ${needsF && foundations && !foundations.length ? html`<div class="tiny" style="color:var(--danger);margin-top:4px">No foundations yet. <a href="#/foundations" onClick=${onClose}>Add one first.</a></div>` : null}<//>
-        ${f.type === 'expansion' ? html`<${Field} label="Sites already live" hint="Site activation pricing continues from this volume tier."><input class="input" inputmode="numeric" value=${f.existingLiveSites} onInput=${e => setF({ ...f, existingLiveSites: e.target.value.replace(/[^0-9]/g, '') })} /><//>`
-          : html`<${Field} label=${type.sitesStep ? 'Sample website URL (optional)' : 'Website URL'} hint=${type.sitesStep ? 'Add the rest of the portfolio in the Sites step.' : 'Optional now. Needed to analyse the website.'}><input class="input" value=${f.url} onInput=${e => setF({ ...f, url: e.target.value })} placeholder="https://example.org" />${!urlOk ? html`<div class="tiny" style="color:var(--danger)">Enter a full address starting with https://</div>` : null}<//>`}
+          ${needsF && foundations && !foundations.length ? html`<div class="tiny" style="color:var(--danger);margin-top:4px">No foundations yet. <a href="#/foundations" onClick=${onClose}>Add one first.</a></div>` : null}<//>` : null}
+        ${type.id === 'expansion' ? html`<${Field} label="Sites already live" hint="Site activation pricing continues from this volume tier."><input class="input" inputmode="numeric" value=${f.existingLiveSites} onInput=${e => setF({ ...f, existingLiveSites: e.target.value.replace(/[^0-9]/g, '') })} /><//>`
+          : html`<${Field} label=${multiStep ? 'Sample website URL (optional)' : 'Website URL'} hint=${multiStep ? 'Add the rest of the portfolio in the Sites step.' : 'The current website, if there is one. Needed to analyse it.'}><input class="input" value=${f.url} onInput=${e => setF({ ...f, url: e.target.value })} placeholder="https://example.org" />${!urlOk ? html`<div class="tiny" style="color:var(--danger)">Enter a full address starting with https://</div>` : null}<//>`}
       </div>
-      <div class="tiny muted">The quote takes a pricing snapshot from the current Pricing Library${f.foundationId ? ' and a snapshot of the chosen foundation' : ''}, and starts from the ${type.name.toLowerCase()} presets. Every line stays editable.</div>
+      <div class="tiny muted">The quote takes a pricing snapshot from the current Pricing Library${f.foundationId && canF ? ' and a snapshot of the chosen foundation' : ''}, and starts from the ${type.name.toLowerCase()} presets. Every line stays editable, and the Quote assistant can fill it from a brief.</div>
       ${err ? html`<div class="banner danger">${err}</div>` : null}
     </div><//>`;
 }
