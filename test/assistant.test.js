@@ -148,3 +148,70 @@ test('assistant explains missing key and API errors without breaking the convers
     assert.equal(s.status, 'done'); assert.equal(s.text, 'Hello again.');
   } finally { srv.close(); srv2.close(); }
 });
+
+test('conversation repair: unanswered tool calls, merged roles and orphan results are fixed', async () => {
+  const { repairMessages } = await import('../server/assistant.js');
+  // the exact shape that broke: a tool request saved without its results, then more user turns
+  const broken = [
+    { role: 'user', content: [{ type: 'text', text: 'Build it' }] },
+    { role: 'assistant', content: [{ type: 'text', text: 'On it' }, { type: 'tool_use', id: 'a', name: 'set_lines', input: {} }, { type: 'tool_use', id: 'b', name: 'write_proposal', input: {} }] },
+    { role: 'user', content: [{ type: 'text', text: 'media qty is 0?' }] },
+    { role: 'assistant', content: [{ type: 'text', text: '(Stopped: error)' }] },
+    { role: 'user', content: [{ type: 'text', text: 'media qty is 0?' }] },
+    { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'zzz', content: 'orphan' }, { type: 'text', text: 'again' }] },
+  ];
+  const fixed = repairMessages(broken);
+  fixed.forEach((m, i) => assert.equal(m.role, i % 2 ? 'assistant' : 'user'));
+  assert.deepEqual(fixed[2].content.slice(0, 2).map(b => b.tool_use_id), ['a', 'b'], 'missing results added first');
+  assert.ok(fixed[2].content[0].is_error);
+  assert.equal(fixed.at(-1).content.filter(b => b.type === 'tool_result').length, 0, 'orphan result removed');
+  assert.equal(fixed.at(-1).content.length, 2, 'consecutive user messages merged');
+});
+
+test('a reply cut off at the output limit is answered and the conversation keeps working', async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqs-ai4-'));
+  const script = [
+    { tools: [['set_lines', { lines: [{ id: 'BASE_STD_COMPONENT', state: 'included', qty: 3 }] }]], stop: 'max_tokens' },
+    { tools: [['set_lines', { lines: [{ id: 'BASE_STD_COMPONENT', state: 'included', qty: 5, reason: 'retry' }] }]] },
+    { text: 'Done in two steps.' },
+    { text: 'Second turn works.' },
+  ];
+  let i = 0; const seen = [];
+  const fetchImpl = async (url, opts) => {
+    const body = JSON.parse(opts.body); seen.push(body);
+    body.messages.forEach((m, k) => assert.equal(m.role, k % 2 ? 'assistant' : 'user'));
+    for (let k = 0; k < body.messages.length; k++) {
+      const uses = body.messages[k].content.filter?.(b => b.type === 'tool_use') || [];
+      if (uses.length) { const ids = body.messages[k + 1].content.filter(b => b.type === 'tool_result').map(b => b.tool_use_id); uses.forEach(u => assert.ok(ids.includes(u.id))); }
+    }
+    const st = script[i++] || { text: 'ok' };
+    const content = st.tools ? st.tools.map((t, n) => ({ type: 'tool_use', id: `t${i}_${n}`, name: t[0], input: t[1] })) : [{ type: 'text', text: st.text }];
+    return { ok: true, status: 200, json: async () => ({ content, stop_reason: st.stop || (st.tools ? 'tool_use' : 'end_turn') }) };
+  };
+  const app = createApp({ dataDir, assistant: { enabled: true, apiKey: 'sk-test', model: 'claude-test' }, assistantFetch: fetchImpl });
+  const srv = await new Promise(r => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
+  const call = (m, p, b) => fetch(`http://127.0.0.1:${srv.address().port}${p}`, { method: m, headers: { 'content-type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }).then(r => r.json());
+  const wait = async id => { for (let k = 0; k < 100; k++) { const j = await call('GET', `/api/assistant/jobs/${id}`); if (j.status !== 'running') return j; await new Promise(r => setTimeout(r, 50)); } };
+  try {
+    const j = await wait((await call('POST', '/api/quotes/example-pytorch/assistant', { text: 'add components' })).id);
+    assert.equal(j.status, 'done'); assert.equal(j.text, 'Done in two steps.');
+    assert.ok(j.steps.some(s => !s.ok && /cut off/.test(s.summary)));
+    assert.equal((await call('GET', '/api/quotes/example-pytorch')).lines.BASE_STD_COMPONENT.qty, 5, 'the cut off call was not applied; the retry was');
+    const j2 = await wait((await call('POST', '/api/quotes/example-pytorch/assistant', { text: 'and now?' })).id);
+    assert.equal(j2.text, 'Second turn works.');
+  } finally { srv.close(); }
+});
+
+test('media allowance is estimated from the scan when no CMS export is verified', async () => {
+  const { proposeQuantities, mediaEstimate } = await import('../shared/inventory.js');
+  const q = JSON.parse(fs.readFileSync(new URL('../seed/quotes/example-pytorch.json', import.meta.url)));
+  delete q.lines.MIG_MEDIA;
+  q.inventory.media = { discovered: { pagesInspected: 50, images: { unique: 180 }, documents: { unique: 20 } }, imageSitemap: { unique: 90 }, bySite: { 'pytorch.org': {} } };
+  const row = proposeQuantities(q).rows.find(r => r.id === 'MIG_MEDIA');
+  const urls = proposeQuantities(q).portfolio.migratableUrls;
+  assert.equal(row.proposed, Math.round(4 * urls)); assert.equal(row.selected, true);
+  assert.match(row.basis, /200 unique images and documents on 50 inspected pages/);
+  q.inventory.media.verified = { total: 1234, migrateTotal: 1200, fileName: 'media.csv' };
+  assert.equal(proposeQuantities(q).rows.find(r => r.id === 'MIG_MEDIA').proposed, 1200, 'a verified export wins');
+  assert.equal(mediaEstimate({}, { migratableUrls: 10 }), null);
+});

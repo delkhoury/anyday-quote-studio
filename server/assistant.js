@@ -51,6 +51,7 @@ Rules:
 - Quantities must be defensible. Prefer scan results over guesses. When you estimate, say so in the reason and add an assumption.
 - Charge content once: a URL is a Level 1, 2 or 3 page, a bulk static page, or a structured record, never two of these. Generated archives (tags, categories, authors) are not charged.
 - Redirects: a planning allowance, usually the number of URLs whose path will change.
+- Media: apply_inventory_quantities proposes an allowance estimated from the scan (media per inspected page × included URLs, or the image sitemap). It is an estimate until a CMS media export is imported; say so in an assumption.
 - Items whose quantity is computed automatically (i.e. Component design) only need to be included.
 - On a foundation quote, do not include the core platform or brand control build items; the foundation provides them.
 - If the brief is too thin to quote, still build the best first draft, state the assumptions, and list the questions.
@@ -246,7 +247,7 @@ export async function callClaude({ apiKey, model, system, messages, tools, fetch
   const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
     method: 'POST', signal,
     headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model, max_tokens: 8000, system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }], messages, tools }),
+    body: JSON.stringify({ model, max_tokens: 16000, system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }], messages, tools }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -271,6 +272,43 @@ export async function fileBlocks(files = []) {
       out.push({ type: 'text', text: `Attached Word document "${name}":\n\n${value.slice(0, 200000)}` });
     } else if (/^text\/|json|csv|markdown/.test(type) || /\.(txt|md|csv|json)$/i.test(name)) out.push({ type: 'text', text: `Attached file "${name}":\n\n${buf.toString('utf8').slice(0, 200000)}` });
     else throw Object.assign(new Error(`${name}: use PDF, Word (.docx), text, Markdown, CSV or an image`), { status: 400 });
+  }
+  return out;
+}
+
+// Make a stored conversation valid for the Messages API: it starts with the user, roles
+// alternate, and every tool_use is answered by a tool_result in the very next message.
+// Repairs conversations saved by earlier versions that could stop on a cut off reply.
+export function repairMessages(messages) {
+  const out = [];
+  const asBlocks = c => (Array.isArray(c) ? c : [{ type: 'text', text: String(c ?? '') }]);
+  for (const m of messages || []) {
+    const msg = { role: m.role, content: asBlocks(m.content).filter(b => b && b.type) };
+    if (!msg.content.length) continue;
+    const prev = out[out.length - 1];
+    if (prev && prev.role === msg.role) { prev.content = [...prev.content, ...msg.content]; continue; }
+    out.push(msg);
+  }
+  while (out.length && out[0].role !== 'user') out.shift();
+  for (let i = 0; i < out.length; i++) {
+    const m = out[i];
+    if (m.role !== 'assistant') continue;
+    const ids = m.content.filter(b => b.type === 'tool_use').map(b => b.id);
+    let next = out[i + 1];
+    if (!ids.length) continue;
+    if (!next) { next = { role: 'user', content: [] }; out.push(next); }
+    const have = new Set(next.content.filter(b => b.type === 'tool_result').map(b => b.tool_use_id));
+    const missing = ids.filter(id => !have.has(id)).map(id => ({ type: 'tool_result', tool_use_id: id, content: 'This call was not run (the turn was interrupted).', is_error: true }));
+    // tool results must come first in the user message
+    const results = [...next.content.filter(b => b.type === 'tool_result' && ids.includes(b.tool_use_id)), ...missing];
+    next.content = [...results, ...next.content.filter(b => !(b.type === 'tool_result'))];
+  }
+  // a tool_result whose tool_use is gone is invalid too
+  for (let i = 0; i < out.length; i++) {
+    const m = out[i]; if (m.role !== 'user') continue;
+    const prevIds = new Set(i > 0 ? out[i - 1].content.filter(b => b.type === 'tool_use').map(b => b.id) : []);
+    m.content = m.content.filter(b => b.type !== 'tool_result' || prevIds.has(b.tool_use_id));
+    if (!m.content.length) m.content = [{ type: 'text', text: '(continue)' }];
   }
   return out;
 }
@@ -312,13 +350,22 @@ export function createAssistant({ store, dataDir, config = assistantConfig(), sc
       for (let step = 0; step < MAX_STEPS; step++) {
         if (job.ctl.signal.aborted) throw Object.assign(new Error('Stopped'), { code: 'cancelled' });
         job.progress = step === 0 ? 'Reading the brief…' : 'Thinking…';
+        c.messages = repairMessages(c.messages);
         const resp = await callClaude({ apiKey: config.apiKey, model: config.model, system: systemPrompt(ctx.q, { foundations }), messages: c.messages, tools: TOOLS, fetchImpl, signal: job.ctl.signal });
         c.messages.push({ role: 'assistant', content: resp.content });
         for (const b of resp.content) if (b.type === 'text' && b.text.trim()) reply.text += (reply.text ? '\n\n' : '') + b.text.trim();
         job.usage = { input: (job.usage?.input || 0) + (resp.usage?.input_tokens || 0) + (resp.usage?.cache_read_input_tokens || 0), output: (job.usage?.output || 0) + (resp.usage?.output_tokens || 0) };
-        if (resp.stop_reason !== 'tool_use') break;
+        const uses = resp.content.filter(x => x.type === 'tool_use');
+        if (!uses.length) break;
         const results = [];
-        for (const b of resp.content.filter(x => x.type === 'tool_use')) {
+        // a reply cut off at the output limit may hold an incomplete tool request: answer it, never drop it
+        const truncated = resp.stop_reason === 'max_tokens';
+        for (const b of uses) {
+          if (truncated) {
+            reply.steps.push({ tool: b.name, summary: 'Reply was cut off; retrying in smaller steps', ok: false });
+            results.push({ type: 'tool_result', tool_use_id: b.id, content: 'Your reply was cut off at the output limit, so this call was not run. Repeat it in smaller parts (i.e. fewer lines per set_lines call).', is_error: true });
+            continue;
+          }
           const fn = tools[b.name];
           job.progress = (TOOLS.find(t => t.name === b.name)?.description || b.name).split('.')[0] + '…';
           try {

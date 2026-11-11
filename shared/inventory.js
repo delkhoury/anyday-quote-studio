@@ -192,6 +192,26 @@ export function portfolioSummary(quote) {
 // Review and apply quantities: proposals compared with the quote's current quantities.
 // Nothing is written until the user applies the rows they choose.
 // ---------------------------------------------------------------------------
+// Planning allowance for media when no CMS export is verified: unique images and documents per
+// inspected page, scaled to every included URL across the portfolio; never below the image
+// sitemap count (scaled to all sites when only samples were scanned).
+export function mediaEstimate(media, pf) {
+  const d = media?.discovered; const sm = media?.imageSitemap;
+  const pages = d?.pagesInspected || 0;
+  const found = (d?.images?.unique || 0) + (d?.documents?.unique || 0);
+  const scannedSites = Object.keys(media?.bySite || {}).length || 1;
+  const siteScale = pf.totalSites && pf.extrapolated ? pf.totalSites / scannedSites : 1;
+  const perPage = pages ? found / pages : 0;
+  const fromPages = Math.round(perPage * (pf.migratableUrls || 0));
+  const fromSitemap = Math.round((sm?.unique || 0) * siteScale);
+  const qty = Math.max(fromPages, fromSitemap);
+  if (!qty) return null;
+  const parts = [];
+  if (fromPages) parts.push(`${fmtInt(found)} unique images and documents on ${fmtInt(pages)} inspected pages (${(Math.round(perPage * 10) / 10).toLocaleString('en-US')} per page) × ${fmtInt(pf.migratableUrls)} included URLs`);
+  if (fromSitemap) parts.push(`${fmtInt(sm.unique)} image sitemap entries${siteScale !== 1 ? ` scaled to ${fmtInt(pf.totalSites)} sites` : ''}`);
+  return { qty, basis: `Estimated ${fmtInt(qty)} assets: the larger of ${parts.join(' and ')}.`, fromPages, fromSitemap };
+}
+
 export function proposeQuantities(quote) {
   const inv = quote.inventory;
   const s = summarize(inv);
@@ -242,6 +262,13 @@ export function proposeQuantities(quote) {
   if (verified && Number.isFinite(verified.migrateTotal ?? verified.total)) {
     const v = verified.migrateTotal ?? verified.total;
     push('MIG_MEDIA', v, `Verified CMS media export: ${fmtInt(v)} assets (${verified.fileName || 'export'})`, 'Media volume is based on the verified CMS media export.');
+  } else {
+    const est = mediaEstimate(inv?.media, pf);
+    if (est) {
+      const line = quote.lines?.MIG_MEDIA || {};
+      const empty = line.qty === undefined || line.qty === null || Number(line.qty) === 0;
+      push('MIG_MEDIA', est.qty, est.basis, 'Media volume is a planning allowance estimated from the website scan, which does not see the whole media library. It will be confirmed against a CMS media export.', { selected: empty && line.qtySource !== 'manual', editable: true, note: 'Estimate from the scan. Import a CMS media export on Analyse for a verified count.' });
+    }
   }
   const redirectRef = pf.migratableUrls + T.ARCHIVE;
   push('MIG_REDIRECTS', quantityFor(quote, items.MIG_REDIRECTS, lineFor(quote, items.MIG_REDIRECTS)) ?? 0, `Up to ${fmtInt(redirectRef)} included URLs could change. Only URLs whose path changes need a redirect.`, 'Redirect volume is a planning allowance; URLs that keep their path need no redirect.', { selected: false, editable: true, note: 'Set independently. Not derived from the URL count.' });
